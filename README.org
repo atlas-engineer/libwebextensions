@@ -1,0 +1,15 @@
+#+TITLE:WebExtensions API support library
+
+Right now, it's just a prototype for loading Scheme-based library into WebKit via WebKitWebExtension infrastructure. Scheme code is
+- injected as a C string,
+- compiled with libguile,
+- and then hooked as callbacks into extension signals
+
+Scheme code partially implements JSCore API necesary for JavaScript class and object creation.
+
+* To Do:
+- Scheme implementation:
+  - [ ] Complete JSCore support.
+  - [ ] Add WebKitWebExtension support.
+  - [ ] Glib/GTK primitives, if necessary.
+- Common Lisp implementation?
