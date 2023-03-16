@@ -1,3 +1,6 @@
+;;;; SPDX-FileCopyrightText: Atlas Engineer LLC
+;;;; SPDX-License-Identifier: BSD-3-Clause
+
 (define-module (webkit-webextensions)
   #:use-module (system foreign)
   #:use-module (system foreign-library)
