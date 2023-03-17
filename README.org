@@ -11,7 +11,7 @@ Scheme code partially implements JSCore API necesary for JavaScript class and ob
 
 On Guix, it's enough to:
 #+begin_src sh
-  guix shell glib gobject-introspection webkitgtk guile -- make
+  guix shell pkg-config glib gobject-introspection webkitgtk guile -- make
 #+end_src
 
 
