@@ -4,6 +4,7 @@
 (define-module (webkit-webextensions)
   #:use-module (system foreign)
   #:use-module (system foreign-library)
+  #:use-module (srfi srfi-1)
   #:export (entry-webextensions))
 
 ;; When developing, try:
@@ -83,14 +84,64 @@
     (when (positive? (length contents))
       (do ((idx 0 (1+ idx)))
           ((>= idx (length contents)))
-        (jsc-property-set! arr (string->pointer (number->string idx))
-                           (list-ref contents idx))))
+        (let ((value (list-ref contents idx)))
+          (jsc-property-set! arr (string->pointer (number->string idx))
+                             (if (pointer? value)
+                                 value
+                                 (scm->jsc value))))))
     arr))
 (define (jsc-array? jsc)
-  (positive? ((foreign-fn "jsc_value_is_array" '(*) unsigned-int) jsc)))
+  (positive? ((foreign-fn "jsc_value_is_array" '(*) unsigned-int))))
 
-;; All Scheme types: boolean?, pair?, symbol?, number?, char?, string?, vector?, port?, procedure?
-;; Guile ones: hash-table? and objects (any predicate for those?)
+;; TODO: jsc->array
+
+(define* (jsc-make-object class contents #:optional (context (jsc-make-context)))
+  ;; CONTENTS should be a dotted alist from strings to JSCValue-s.
+  (let ((obj ((foreign-fn "jsc_value_new_object" '(* * *) '*)
+              context %null-pointer class)))
+    (when (positive? (length contents))
+      (do ((idx 0 (1+ idx)))
+          ((>= idx (length contents)))
+        (let ((value (cdr (list-ref contents idx))))
+          (jsc-property-set! obj (string->pointer (car (list-ref contents idx)))
+                             (if (pointer? value)
+                                 value
+                                 (scm->jsc value))))))
+    obj))
+(define (jsc-object? obj)
+  (positive? ((foreign-fn "jsc_value_is_object" '(*) unsigned-int) obj)))
+
+(define* (scm->jsc object #:optional (context (jsc-make-context)))
+  (cond
+   ((eq? #:null object) (jsc-make-null context))
+   ((eq? #:undefined object) (jsc-make-undefined context))
+   ((symbol? object) (scm->jsc (symbol->string object)))
+   ((keyword? object) (scm->jsc (keyword->symbol object)))
+   ((boolean? object) (jsc-make-boolean object context))
+   ((number? object) (jsc-make-number object context))
+   ((string? object) (jsc-make-string object context))
+   ((vector? object) (jsc-make-array object context))
+   ;; Dotted alist
+   ((and (list? object)
+         (not (list? (cdr (car object)))))
+    (jsc-make-object %null-pointer object context))
+   ((list? object) (jsc-make-array object context))
+   (else (error "scm->jsc: unknown value passed"))))
+
+(define* (jsc->scm object)
+  (cond
+   ((not (pointer? object))
+    (error "jsc->scm: passed non-pointer."))
+   ((jsc-null? object) #:null)
+   ((jsc-undefined? object) #:undefined)
+   ((jsc-boolean? object) (jsc->boolean object))
+   ((jsc-string? object) (jsc->string object))
+   ((jsc-number? object) (jsc->double object))
+   ((jsc-array? object) (error "jsc->scm: array conversion not implemented yet"))
+   ((jsc-object? object) (error "jsc->scm: object conversion not implemented yet"))))
+
+;; jsc Scheme types: boolean?, pair?, symbol?, number?, char?, string?, vector?, port?, procedure?
+;; Guile ones: hash-table? and objects (any predicate for those? record? maybe)
 
 (define* (json->jsc json #:optional (context (jsc-make-context)))
   ((foreign-fn "jsc_value_new_from_json" '(* *) '*)
