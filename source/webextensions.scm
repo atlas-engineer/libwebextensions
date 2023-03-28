@@ -92,8 +92,13 @@
     arr))
 (define (jsc-array? jsc)
   (positive? ((foreign-fn "jsc_value_is_array" '(*) unsigned-int))))
-
-;; TODO: jsc->array
+(define (jsc->list object)
+  (let rec ((idx 0))
+    (if (zero? ((foreign-fn "jsc_value_object_has_property" '(* *) unsigned-int)
+                object (string->pointer (number->string idx))))
+        '()
+        (cons (jsc->scm (jsc-property object (number->string idx)))
+              (rec (1+ idx))))))
 
 (define* (jsc-make-object class contents #:optional (context (jsc-make-context)))
   ;; CONTENTS should be a dotted alist from strings to JSCValue-s.
