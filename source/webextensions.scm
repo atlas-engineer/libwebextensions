@@ -71,6 +71,34 @@ Returns raw JSCValue resulting from CODE evaluation."
   "Evaluate CODE in CONTEXT, but return Scheme value."
   (jsc->scm (jsc-context-evaluate code context)))
 
+(define (jsc-context-exception context)
+  "Return the last JSCException in CONTEXT."
+  (let ((exception ((foreign-fn "jsc_context_get_expression" '(*) '*) context)))
+    (if (eq? %null-pointer exception)
+        #f
+        exception)))
+
+(define* (jsc-context-value name #:optional (context (jsc-make-context)))
+  ((foreign-fn "jsc_context_get_value" '(* *) '*)
+   context (string->pointer name)))
+
+(define* (jsc-context-value-set! name value #:optional (context (jsc-make-context)))
+  ((foreign-fn "jsc_context_set_value" '(* * *) '*)
+   context (string->pointer name)
+   (if (pointer? value)
+       value
+       (scm->jsc value))))
+
+(define* (jsc-context-register-class context name #:optional (parent-class %null-pointer))
+  "Return a class registered in CONTEXT under NAME.
+Inherits from PARENT-CLASS, if any."
+  ((foreign-fn "jsc_context_register_class" '(* * * * *) '*)
+   context
+   (string->pointer name)
+   parent-class
+   %null-pointer
+   %null-pointer))
+
 ;; JSCValue
 
 (define* (jsc-make-undefined #:optional (context (jsc-make-context)))
