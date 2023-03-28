@@ -11,17 +11,67 @@
 ;; (define lib (load-foreign-library "/path/to/lib/libwebkit2gtk-4.1.so"))
 (define lib #f)
 
+;;; General utilities (Glib and FFI)
+
 (define (foreign-fn name args return-type)
+  "Wrapper around `foreign-library-function' for ease of throwaway C calls."
   (foreign-library-function
    lib name
    #:return-type return-type
    #:arg-types args))
 
+(define* (g-print format-string . args)
+  "Print values using Glib primitives."
+  (apply (pointer->procedure void
+                             (foreign-library-pointer lib "g_print")
+                             (cons '*
+                                   (map (lambda (a)
+                                          (cond
+                                           ((or (string? a)
+                                                (pointer? a))
+                                            '*)
+                                           ((number? a)
+                                            int64)))
+                                        args)))
+         (string->pointer format-string)
+         (map (lambda (a) (if (string? a)
+                              (string->pointer a)
+                              a))
+              args)))
+
+(define* (g-signal-connect instance signal handler #:optional (data #f))
+  "Connect HANDLER (pointer to procedure) to SIGNAL of INSTANCE."
+  ((foreign-fn "g_signal_connect_data" (list '* '* '* '* '* int) '*)
+   instance
+   (if (pointer? signal)
+       signal
+       (string->pointer signal))
+   handler (or data %null-pointer) %null-pointer 0))
+
+;;; JSCore bindings
+
+;; JSCContext
+
 (define jsc-make-context
   (foreign-fn "jsc_context_new" '() '*))
 
 (define (jsc-context jsc)
-  ((foreign-fn "jsc_value_get-context" '(*) '*) jsc))
+  ((foreign-fn "jsc_value_get_context" '(*) '*) jsc))
+
+(define jsc-context-current
+  (foreign-fn "jsc_context_get_current" '() '*))
+
+(define* (jsc-context-evaluate code #:optional (context (jsc-make-context)))
+  "Evaluate CODE in CONTEXT.
+Returns raw JSCValue resulting from CODE evaluation."
+  ((foreign-fn "jsc_context_evaluate" `(* * ,int) '*)
+   context (string->pointer code) -1))
+
+(define* (jsc-context-evaluate* code #:optional (context (jsc-make-context)))
+  "Evaluate CODE in CONTEXT, but return Scheme value."
+  (jsc->scm (jsc-context-evaluate code context)))
+
+;; JSCValue
 
 (define* (jsc-make-undefined #:optional (context (jsc-make-context)))
   ((foreign-fn "jsc_value_new_undefined" '(*) '*) context))
@@ -35,13 +85,19 @@
 
 (define* (jsc-make-number num #:optional (context (jsc-make-context)))
   ;; Don't call it with complex numbers!!!
-  ((foreign-fn "jsc_value_new_number" (list '* double) '*) context num))
+  (if (or (and (complex? num)
+               (positive? (imag-part num)))
+          (and (rational? num)
+               (> (denominator num) 1)))
+      (error "Cannot create JSC number out of complex/ratio number:" num)
+      ((foreign-fn "jsc_value_new_number" (list '* double) '*) context num)))
 (define (jsc-number? jsc)
   (positive? ((foreign-fn "jsc_value_is_number" '(*) unsigned-int) jsc)))
-(define (jsc->double jsc)
-  ((foreign-fn "jsc_value_to_double" '(*) double) jsc))
-(define (jsc->int32 jsc)
-  ((foreign-fn "jsc_value_to_int32" '(*) int32) jsc))
+(define (jsc->number jsc)
+  (let ((double ((foreign-fn "jsc_value_to_double" '(*) double) jsc)))
+    (if (integer? double)
+        ((foreign-fn "jsc_value_to_int32" '(*) int32) jsc)
+        double)))
 
 (define* (jsc-make-boolean value #:optional (context (jsc-make-context)))
   ((foreign-fn "jsc_value_new_boolean" (list '* unsigned-int) '*)
@@ -52,8 +108,10 @@
   (positive? ((foreign-fn "jsc_value_to_boolean" '(*) unsigned-int) jsc)))
 
 (define* (jsc-make-string str #:optional (context (jsc-make-context)))
-  ((foreign-fn "jsc_value_new_string" (list '* '*) '*)
-   context (string->pointer str)))
+  (if (string? str)
+      ((foreign-fn "jsc_value_new_string" (list '* '*) '*)
+       context (string->pointer str))
+      (error "Cannot make a string out of" str)))
 (define (jsc-string? jsc)
   (positive? ((foreign-fn "jsc_value_is_string" '(*) unsigned-int) jsc)))
 (define (jsc->string jsc)
@@ -131,7 +189,7 @@
          (not (list? (cdr (car object)))))
     (jsc-make-object %null-pointer object context))
    ((list? object) (jsc-make-array object context))
-   (else (error "scm->jsc: unknown value passed"))))
+   (else (error "scm->jsc: unknown value passed" object))))
 
 (define* (jsc->scm object)
   (cond
@@ -141,8 +199,8 @@
    ((jsc-undefined? object) #:undefined)
    ((jsc-boolean? object) (jsc->boolean object))
    ((jsc-string? object) (jsc->string object))
-   ((jsc-number? object) (jsc->double object))
-   ((jsc-array? object) (error "jsc->scm: array conversion not implemented yet"))
+   ((jsc-number? object) (jsc->number object))
+   ((jsc-array? object) (jsc->list object))
    ((jsc-object? object) (error "jsc->scm: object conversion not implemented yet"))))
 
 ;; jsc Scheme types: boolean?, pair?, symbol?, number?, char?, string?, vector?, port?, procedure?
@@ -159,36 +217,14 @@
    ((foreign-fn "jsc_value_to_json" (list '* int) '*)
     jsc-value 0)))
 
-(define* (g-signal-connect instance signal handler #:optional (data #f))
-  ((foreign-fn "g_signal_connect_data" (list '* '* '* '* '* int) '*)
-   instance
-   (if (pointer? signal)
-       signal
-       (string->pointer signal))
-   handler (or data %null-pointer) %null-pointer 0))
-
-(define* (g-print format-string . args)
-  (apply (pointer->procedure void
-                             (foreign-library-pointer lib "g_print")
-                             (cons '*
-                                   (map (lambda (a)
-                                          (cond
-                                           ((or (string? a)
-                                                (pointer? a))
-                                            '*)
-                                           ((number? a)
-                                            int64)))
-                                        args)))
-         (string->pointer format-string)
-         (map (lambda (a) (if (string? a)
-                              (string->pointer a)
-                              a))
-              args)))
+;; Webkit extensions API
 
 (define (page-id page)
   ((foreign-fn "webkit_web_page_get_id" '(*) uint64) page))
 
 (define *page* #f)
+
+;; Entry point
 
 (define (entry-webextensions extension-ptr)
   (g-signal-connect
