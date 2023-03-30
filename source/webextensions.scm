@@ -13,6 +13,29 @@
 
 ;;; General utilities (Glib and FFI)
 
+(define (string->pointer* string)
+  "Smarter string->pointer.
+Converts string to pointers and leaves pointers intact."
+  (cond
+   ((string? string)
+    (string->pointer string))
+   ((pointer? string)
+    string)
+   (else (error "Cannot ensure string pointer for value" string))))
+
+(define* (procedure->pointer* procedure #:optional arg-types (return-type '*))
+  "Smarter procedure->pointer.
+Converts procedures to pointers and leaves pointers intact."
+  (cond
+   ((and (procedure? procedure)
+         (not arg-types))
+    (error "Cannot ensure procedure pointer without arg types"))
+   ((procedure? procedure)
+    (procedure->pointer return-type procedure arg-types))
+   ((pointer? procedure)
+    procedure)
+   (else (error "Cannot ensure procedure pointer for value" procedure))))
+
 (define (foreign-fn name args return-type)
   "Wrapper around `foreign-library-function' for ease of throwaway C calls."
   (foreign-library-function
@@ -43,9 +66,7 @@
   "Connect HANDLER (pointer to procedure) to SIGNAL of INSTANCE."
   ((foreign-fn "g_signal_connect_data" (list '* '* '* '* '* int) '*)
    instance
-   (if (pointer? signal)
-       signal
-       (string->pointer signal))
+   (string->pointer* signal)
    handler (or data %null-pointer) %null-pointer 0))
 
 ;;; JSCore bindings
@@ -65,7 +86,7 @@
   "Evaluate CODE in CONTEXT.
 Returns raw JSCValue resulting from CODE evaluation."
   ((foreign-fn "jsc_context_evaluate" `(* * ,int) '*)
-   context (string->pointer code) -1))
+   context (string->pointer* code) -1))
 
 (define* (jsc-context-evaluate* code #:optional (context (jsc-make-context)))
   "Evaluate CODE in CONTEXT, but return Scheme value."
@@ -79,22 +100,23 @@ Returns raw JSCValue resulting from CODE evaluation."
         exception)))
 
 (define* (jsc-context-value name #:optional (context (jsc-make-context)))
+  "Returns the JSCValue (as a pointer) bound to NAME in CONTEXT."
   ((foreign-fn "jsc_context_get_value" '(* *) '*)
-   context (string->pointer name)))
+   context (string->pointer* name)))
 
 (define* (jsc-context-value-set! name value #:optional (context (jsc-make-context)))
   ((foreign-fn "jsc_context_set_value" '(* * *) '*)
-   context (string->pointer name)
+   context (string->pointer* name)
    (if (pointer? value)
        value
        (scm->jsc value))))
 
 (define* (jsc-context-register-class context name #:optional (parent-class %null-pointer))
-  "Return a class registered in CONTEXT under NAME.
+  "Return a class (JSCClass pointer) registered in CONTEXT under NAME.
 Inherits from PARENT-CLASS, if any."
   ((foreign-fn "jsc_context_register_class" '(* * * * *) '*)
    context
-   (string->pointer name)
+   (string->pointer* name)
    parent-class
    %null-pointer
    %null-pointer))
@@ -136,10 +158,8 @@ Inherits from PARENT-CLASS, if any."
   (positive? ((foreign-fn "jsc_value_to_boolean" '(*) unsigned-int) jsc)))
 
 (define* (jsc-make-string str #:optional (context (jsc-make-context)))
-  (if (string? str)
-      ((foreign-fn "jsc_value_new_string" (list '* '*) '*)
-       context (string->pointer str))
-      (error "Cannot make a string out of" str)))
+  ((foreign-fn "jsc_value_new_string" (list '* '*) '*)
+   context (string->pointer* str)))
 (define (jsc-string? jsc)
   (positive? ((foreign-fn "jsc_value_is_string" '(*) unsigned-int) jsc)))
 (define (jsc->string jsc)
@@ -148,14 +168,10 @@ Inherits from PARENT-CLASS, if any."
 
 (define (jsc-property object property-name)
   ((foreign-fn "jsc_value_object_get_property" '(* *) '*)
-   object (if (string? property-name)
-              (string->pointer property-name)
-              property-name)))
+   object (string->pointer* property-name)))
 (define (jsc-property-set! object property-name value)
   ((foreign-fn "jsc_value_object_set_property" '(* * *) void)
-   object (if (string? property-name)
-              (string->pointer property-name)
-              property-name)
+   object (string->pointer* property-name)
    value))
 
 (define* (jsc-make-array list-or-vector #:optional (context (jsc-make-context)))
@@ -187,20 +203,24 @@ Inherits from PARENT-CLASS, if any."
               (rec (1+ idx))))))
 
 (define* (jsc-make-object class contents #:optional (context (jsc-make-context)))
-  ;; CONTENTS should be a dotted alist from strings to JSCValue-s.
-  (let ((obj ((foreign-fn "jsc_value_new_object" '(* * *) '*)
-              context %null-pointer class)))
+  "Create a JSCValue object with CLASS and CONTENTS (alist) inside it.
+If CLASS is #f, no class is used."
+  (let* ((class (or class %null-pointer))
+         (obj ((foreign-fn "jsc_value_new_object" '(* * *) '*)
+               context %null-pointer class)))
     (when (positive? (length contents))
       (do ((idx 0 (1+ idx)))
           ((>= idx (length contents)))
         (let ((value (cdr (list-ref contents idx))))
-          (jsc-property-set! obj (string->pointer (car (list-ref contents idx)))
+          (jsc-property-set! obj (string->pointer* (car (list-ref contents idx)))
                              (if (pointer? value)
                                  value
                                  (scm->jsc value))))))
     obj))
 (define (jsc-object? obj)
   (positive? ((foreign-fn "jsc_value_is_object" '(*) unsigned-int) obj)))
+
+;; JSC-related conversion utilities.
 
 (define* (scm->jsc object #:optional (context (jsc-make-context)))
   (cond
@@ -236,23 +256,21 @@ Inherits from PARENT-CLASS, if any."
 
 (define* (json->jsc json #:optional (context (jsc-make-context)))
   ((foreign-fn "jsc_value_new_from_json" '(* *) '*)
-   context (if (pointer? json)
-               json
-               (string->pointer json))))
+   context (string->pointer* json)))
 
 (define (jsc->json jsc-value)
   (pointer->string
    ((foreign-fn "jsc_value_to_json" (list '* int) '*)
     jsc-value 0)))
 
-;; Webkit extensions API
+;;; Webkit extensions API
 
 (define (page-id page)
   ((foreign-fn "webkit_web_page_get_id" '(*) uint64) page))
 
 (define *page* #f)
 
-;; Entry point
+;;; Entry point
 
 (define (entry-webextensions extension-ptr)
   (g-signal-connect
