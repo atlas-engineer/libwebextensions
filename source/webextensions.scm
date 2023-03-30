@@ -121,6 +121,65 @@ Inherits from PARENT-CLASS, if any."
    %null-pointer
    %null-pointer))
 
+;; JSCClass
+
+(define* (jsc-class-add-constructor class name callback number-of-args)
+  "Add a constructor to CLASS with CALLBACK called on object initialization.
+If NAME is #f, use CLASS name.
+
+CALLBACK is generated with NUMBER-OF-ARGS JSCValue inputs and JSCValue
+return type. Using the underlying jsc_class_add_constructor is better
+for cases where specifying other GTypes makes more sense."
+  (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*))))
+    (apply
+     (foreign-fn "jsc_class_add_constructor"
+                 (append `(* * * * * * ,unsigned-int)
+                         (make-list number-of-args '*))
+                 '*)
+     class
+     (string->pointer* name)
+     (procedure->pointer* callback (make-list number-of-args '*))
+     %null-pointer
+     %null-pointer
+     jsc-type
+     number-of-args
+     (make-list number-of-args jsc-type))))
+
+(define* (jsc-class-add-method class name callback number-of-args)
+  (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*))))
+    (apply
+     (foreign-fn "jsc_class_add_method"
+                 (append `(* * * * * * ,unsigned-int)
+                         (make-list number-of-args '*))
+                 '*)
+     class
+     (string->pointer* name)
+     (procedure->pointer* callback (make-list number-of-args '*))
+     %null-pointer
+     %null-pointer
+     jsc-type
+     number-of-args
+     (make-list number-of-args jsc-type))))
+
+(define* (jsc-class-add-property class name getter-callback setter-callback)
+  ((foreign-fn "jsc_class_add_property"
+               `(* * * * * * * *)
+               '*)
+   class
+   (string->pointer* name)
+   ((foreign-fn "jsc_value_get_type" '() '*))
+   (procedure->pointer* getter-callback '(*))
+   (procedure->pointer* setter-callback '(*))
+   %null-pointer
+   %null-pointer))
+
+(define (jsc-class-name class)
+  "Returns string name of CLASS or #f if "
+  (pointer->string ((foreign-fn "jsc_class_get_name" '(*) '*) class)))
+(define (jsc-class-parent class)
+  "Returns raw JSCClass parent on CLASS."
+  ((foreign-fn "jsc_class_get_parent" '(*) '*) class))
+
 ;; JSCValue
 
 (define* (jsc-make-undefined #:optional (context (jsc-make-context)))
