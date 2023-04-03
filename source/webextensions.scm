@@ -279,6 +279,24 @@ If CLASS is #f, no class is used."
 (define (jsc-object? obj)
   (positive? ((foreign-fn "jsc_value_is_object" '(*) unsigned-int) obj)))
 
+(define* (jsc-make-function name callback number-of-args #:optional (context (jsc-make-context)))
+  (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*))))
+    (apply
+     (foreign-fn "jsc_value_new_function"
+                 (append `(* * * * * * ,unsigned-int)
+                         (make-list number-of-args '*))
+                 '*)
+     context
+     (string->pointer* name)
+     (procedure->pointer* callback (make-list number-of-args '*))
+     %null-pointer
+     %null-pointer
+     jsc-type
+     number-of-args
+     (make-list number-of-args jsc-type))))
+(define (jsc-function? object)
+  (positive? ((foreign-fn "jsc_value_is_function" '(*) unsigned-int) obj)))
+
 ;; JSC-related conversion utilities.
 
 (define* (scm->jsc object #:optional (context (jsc-make-context)))
