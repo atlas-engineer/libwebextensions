@@ -182,6 +182,9 @@ for cases where specifying other GTypes makes more sense."
 
 ;; JSCValue
 
+(define (jsc-value-context value)
+  ((foreign-fn "jsc_value_get_context" '(*) '*) value))
+
 (define* (jsc-make-undefined #:optional (context (jsc-make-context)))
   ((foreign-fn "jsc_value_new_undefined" '(*) '*) context))
 (define (jsc-undefined? jsc)
