@@ -174,7 +174,7 @@ for cases where specifying other GTypes makes more sense."
    %null-pointer))
 
 (define (jsc-class-name class)
-  "Returns string name of CLASS or #f if "
+  "Returns string name of CLASS."
   (pointer->string ((foreign-fn "jsc_class_get_name" '(*) '*) class)))
 (define (jsc-class-parent class)
   "Returns raw JSCClass parent on CLASS."
