@@ -300,6 +300,32 @@ If CLASS is #f, no class is used."
 (define (jsc-function? obj)
   (positive? ((foreign-fn "jsc_value_is_function" '(*) unsigned-int) obj)))
 
+(define (apply-with-args function-name initial-args args)
+  (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*))))
+    (apply
+     (foreign-fn function-name
+                 (append (make-list (length initial-args) '*)
+                         (reduce (lambda (l a)
+                                   (append l (list unsigned-int '*)))
+                                 '()
+                                 args)
+                         (list unsigned-int))
+                 '*)
+     (append initial-args
+             (reduce (lambda (l a)
+                       (append l (list jsc-type a)))
+                     '()
+                     args)
+             ;; G_TYPE_NONE (hopefully portable)
+             (list 4)))))
+
+(define* (jsc-function-call function #:rest args)
+  (apply-with-args "jsc_value_function_call" (list function) args))
+(define* (jsc-constructor-call constructor #:rest args)
+  (apply-with-args "jsc_value_constructor_call" (list constructor) args))
+(define* (jsc-object-call-method object name #:rest args)
+  (apply-with-args "jsc_value_object_invoke_method" (list object (string->pointer* name)) args))
+
 ;; JSC-related conversion utilities.
 
 (define* (scm->jsc object #:optional (context (jsc-make-context)))
