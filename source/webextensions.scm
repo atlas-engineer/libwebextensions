@@ -297,7 +297,7 @@ If CLASS is #f, no class is used."
      jsc-type
      number-of-args
      (make-list number-of-args jsc-type))))
-(define (jsc-function? object)
+(define (jsc-function? obj)
   (positive? ((foreign-fn "jsc_value_is_function" '(*) unsigned-int) obj)))
 
 ;; JSC-related conversion utilities.
