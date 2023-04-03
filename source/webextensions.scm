@@ -384,6 +384,73 @@ If CLASS is #f, no class is used."
 
 ;;; Webkit extensions API
 
+;; ContextMenu and ContextMenuItem
+(define (make-context-menu)
+  ((foreign-fn "webkit_context_menu_new" '() '*)))
+
+(define (context-menu-event menu)
+  ((foreign-fn "webkit_context_menu_get_event" '(*) '*) menu))
+(define (context-menu-length menu)
+  ((foreign-fn "webkit_context_menu_get_n_items" '(*) unsigned-int) menu))
+
+(define (context-menu-append! menu item)
+  ((foreign-fn "webkit_context_menu_append" '(* *) void)
+   menu item))
+(define (context-menu-prepend! menu item)
+  ((foreign-fn "webkit_context_menu_prepend" '(* *) void)
+   menu item))
+(define (context-menu-insert! menu item index)
+  ((foreign-fn "webkit_context_menu_insert" `(* * ,unsigned-int) void)
+   menu item index))
+(define (context-menu-remove! menu item)
+  ((foreign-fn "webkit_context_menu_remove" '(* *) void)
+   menu item))
+(define (context-menu-remove-all! menu)
+  ((foreign-fn "webkit_context_menu_remove" '(*) void) menu))
+(define (context-menu-move! menu item index)
+  ((foreign-fn "webkit_context_menu_move_item" `(* * ,unsigned-int) void)
+   menu item index))
+
+(define (context-menu-first menu)
+  ((foreign-fn "webkit_context_menu_first" '(*) '*) menu))
+(define (context-menu-last menu)
+  ((foreign-fn "webkit_context_menu_last" '(*) '*) menu))
+(define (context-menu-ref menu index)
+  ((foreign-fn "webkit_context_menu_get_item_at_position" `(* ,unsigned-int) '*)
+   menu index))
+
+(define (context-menu-item-action item)
+  ((foreign-fn "webkit_context_menu_item_get_gaction" `(*) '*) item))
+(define (context-menu-item-stock-action item)
+  ((foreign-fn "webkit_context_menu_item_get_stock_action" `(*) unsigned-int) item))
+(define (context-menu-item-separator? item)
+  (positive? ((foreign-fn "webkit_context_menu_item_is_separator" `(*) unsigned-int) item)))
+(define (make-context-menu-separator)
+  ((foreign-fn "webkit_context_menu_item_new_separator" `() '*)))
+(define (make-context-menu-submenu label submenu)
+  ((foreign-fn "webkit_context_menu_item_new_with_submenu" `(* *) '*)
+   (string->pointer* label) submenu))
+
+(define* (make-context-menu-item label #:optional (action 1000))
+  "Make a new context menu item with text LABEL.
+ACTION can be:
+- An integer (ContextMenuAction) for predefined action.
+- Or a procedure on (action parameter), in which case it's set as the
+callback for the item.
+
+Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
+  (let ((item ((foreign-fn "webkit_context_menu_item_new_from_stock_action_with_label"
+                           `(,unsigned-int *) '*)
+               (if (procedure? action)
+                   action
+                   1000)
+               (string->pointer* label))))
+    (when (procedure? action)
+      (g-signal-connect (context-menu-item-action item) "activate" (procedure->pointer* action '(* *) void)))
+    item))
+
+;; WebPage
+
 (define (page-id page)
   ((foreign-fn "webkit_web_page_get_id" '(*) uint64) page))
 
