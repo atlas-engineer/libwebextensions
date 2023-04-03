@@ -231,10 +231,16 @@ for cases where specifying other GTypes makes more sense."
 (define (jsc-property object property-name)
   ((foreign-fn "jsc_value_object_get_property" '(* *) '*)
    object (string->pointer* property-name)))
+(define (jsc-property? object property-name)
+  ((foreign-fn "jsc_value_object_has_property" '(* *) '*)
+   object (string->pointer* property-name)))
 (define (jsc-property-set! object property-name value)
   ((foreign-fn "jsc_value_object_set_property" '(* * *) void)
    object (string->pointer* property-name)
    value))
+(define (jsc-property-delete! object property-name)
+  ((foreign-fn "jsc_value_object_set_property" '(* *) void)
+   object (string->pointer* property-name)))
 
 (define* (jsc-make-array list-or-vector #:optional (context (jsc-make-context)))
   ;; Transform LIST-OR-VECTOR to a JSC array.
@@ -281,6 +287,13 @@ If CLASS is #f, no class is used."
     obj))
 (define (jsc-object? obj)
   (positive? ((foreign-fn "jsc_value_is_object" '(*) unsigned-int) obj)))
+(define (jsc-instance-of? obj parent-name)
+  (positive? ((foreign-fn "jsc_value_object_is_instance_of" '(* *) unsigned-int)
+              ;; JSCClass?
+              (if (pointer? obj)
+                  (jsc-class-name obj)
+                  obj)
+              (string->pointer* parent-name))))
 
 (define* (jsc-make-function name callback number-of-args #:optional (context (jsc-make-context)))
   (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*))))
