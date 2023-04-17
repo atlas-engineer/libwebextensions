@@ -62,6 +62,21 @@ Converts procedures to pointers and leaves pointers intact."
                               a))
               args)))
 
+(define (make-g-variant string-or-nothing)
+  "Create and return a new maybe string (ms) GVariant."
+  ((foreign-fn "g_variant_new" '(* *) '*)
+   (string->pointer "ms")
+   (if (string? string-or-nothing)
+       string-or-nothing
+       %null-pointer)))
+
+(define (g-variant-string g-variant)
+  (let ((maybe ((foreign-fn "g_variant_get_maybe" '(*) '*) g-variant)))
+    (if (equal? %null-pointer maybe)
+        #f
+        (pointer->string
+         ((foreign-fn "g_variant_string" '(*) '*) g-variant)))))
+
 (define* (g-signal-connect instance signal handler #:optional (data #f))
   "Connect HANDLER (pointer to procedure) to SIGNAL of INSTANCE."
   ((foreign-fn "g_signal_connect_data" (list '* '* '* '* '* int) '*)
