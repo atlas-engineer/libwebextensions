@@ -13,6 +13,11 @@
 
 ;;; General utilities (Glib and FFI)
 
+(define (pointer/false value)
+  (if (eq? %null-pointer value)
+      #f
+      value))
+
 (define (string->pointer* string)
   "Smarter string->pointer.
 Converts string to pointers and leaves pointers intact."
@@ -71,11 +76,11 @@ Converts procedures to pointers and leaves pointers intact."
        %null-pointer)))
 
 (define (g-variant-string g-variant)
-  (let ((maybe ((foreign-fn "g_variant_get_maybe" '(*) '*) g-variant)))
-    (if (equal? %null-pointer maybe)
-        #f
-        (pointer->string
-         ((foreign-fn "g_variant_string" '(*) '*) g-variant)))))
+  (let ((maybe (pointer/false
+                ((foreign-fn "g_variant_get_maybe" '(*) '*) g-variant))))
+    (when maybe
+      (pointer->string
+       ((foreign-fn "g_variant_string" '(*) '*) g-variant)))))
 
 (define* (g-signal-connect instance signal handler #:optional (data #f))
   "Connect HANDLER (pointer to procedure) to SIGNAL of INSTANCE."
@@ -92,39 +97,29 @@ Converts procedures to pointers and leaves pointers intact."
   (foreign-fn "jsc_context_new" '() '*))
 
 (define (jsc-context jsc)
-  ((foreign-fn "jsc_value_get_context" '(*) '*) jsc))
+  (pointer/false ((foreign-fn "jsc_value_get_context" '(*) '*) jsc)))
 
-(define jsc-context-current
-  (foreign-fn "jsc_context_get_current" '() '*))
+(define (jsc-context-current)
+  (pointer/false ((foreign-fn "jsc_context_get_current" '() '*))))
 
-(define* (jsc-context-evaluate code #:optional (context (jsc-make-context)))
+(define (jsc-context-get/make)
+  (or (jsc-context-current)
+      (jsc-make-context)))
+
+(define* (jsc-context-evaluate code #:optional (context (jsc-context-get/make)))
   "Evaluate CODE in CONTEXT.
 Returns raw JSCValue resulting from CODE evaluation."
   ((foreign-fn "jsc_context_evaluate" `(* * ,int) '*)
    context (string->pointer* code) -1))
 
-(define* (jsc-context-evaluate* code #:optional (context (jsc-make-context)))
-  "Evaluate CODE in CONTEXT, but return Scheme value."
-  (jsc->scm (jsc-context-evaluate code context)))
-
 (define (jsc-context-exception context)
   "Return the last JSCException in CONTEXT."
-  (let ((exception ((foreign-fn "jsc_context_get_expression" '(*) '*) context)))
-    (if (eq? %null-pointer exception)
-        #f
-        exception)))
+  (pointer/false ((foreign-fn "jsc_context_get_expression" '(*) '*) context)))
 
-(define* (jsc-context-value name #:optional (context (jsc-make-context)))
+(define* (jsc-context-value name #:optional (context (jsc-context-get/make)))
   "Returns the JSCValue (as a pointer) bound to NAME in CONTEXT."
   ((foreign-fn "jsc_context_get_value" '(* *) '*)
    context (string->pointer* name)))
-
-(define* (jsc-context-value-set! name value #:optional (context (jsc-make-context)))
-  ((foreign-fn "jsc_context_set_value" '(* * *) '*)
-   context (string->pointer* name)
-   (if (pointer? value)
-       value
-       (scm->jsc value))))
 
 (define* (jsc-context-register-class context name #:optional (parent-class %null-pointer))
   "Return a class (JSCClass pointer) registered in CONTEXT under NAME.
@@ -200,17 +195,19 @@ for cases where specifying other GTypes makes more sense."
 (define (jsc-value-context value)
   ((foreign-fn "jsc_value_get_context" '(*) '*) value))
 
-(define* (jsc-make-undefined #:optional (context (jsc-make-context)))
+;; NOTE: Don't use undefined when passing objects to/from browser:
+;; JSON doesn't support undefined!
+(define* (jsc-make-undefined #:optional (context (jsc-context-get/make)))
   ((foreign-fn "jsc_value_new_undefined" '(*) '*) context))
 (define (jsc-undefined? jsc)
   (positive? ((foreign-fn "jsc_value_is_undefined" '(*) unsigned-int) jsc)))
 
-(define* (jsc-make-null #:optional (context (jsc-make-context)))
+(define* (jsc-make-null #:optional (context (jsc-context-get/make)))
   ((foreign-fn "jsc_value_new_null" '(*) '*) context))
 (define (jsc-null? jsc)
   (positive? ((foreign-fn "jsc_value_is_null" '(*) unsigned-int) jsc)))
 
-(define* (jsc-make-number num #:optional (context (jsc-make-context)))
+(define* (jsc-make-number num #:optional (context (jsc-context-get/make)))
   ;; Don't call it with complex numbers!!!
   (if (or (and (complex? num)
                (positive? (imag-part num)))
@@ -226,7 +223,7 @@ for cases where specifying other GTypes makes more sense."
         ((foreign-fn "jsc_value_to_int32" '(*) int32) jsc)
         double)))
 
-(define* (jsc-make-boolean value #:optional (context (jsc-make-context)))
+(define* (jsc-make-boolean value #:optional (context (jsc-context-get/make)))
   ((foreign-fn "jsc_value_new_boolean" (list '* unsigned-int) '*)
    context (if value 1 0)))
 (define (jsc-boolean? jsc)
@@ -234,7 +231,7 @@ for cases where specifying other GTypes makes more sense."
 (define (jsc->boolean jsc)
   (positive? ((foreign-fn "jsc_value_to_boolean" '(*) unsigned-int) jsc)))
 
-(define* (jsc-make-string str #:optional (context (jsc-make-context)))
+(define* (jsc-make-string str #:optional (context (jsc-context-get/make)))
   ((foreign-fn "jsc_value_new_string" (list '* '*) '*)
    context (string->pointer* str)))
 (define (jsc-string? jsc)
@@ -257,7 +254,7 @@ for cases where specifying other GTypes makes more sense."
   ((foreign-fn "jsc_value_object_set_property" '(* *) void)
    object (string->pointer* property-name)))
 
-(define* (jsc-make-array list-or-vector #:optional (context (jsc-make-context)))
+(define* (jsc-make-array list-or-vector #:optional (context (jsc-context-get/make)))
   ;; Transform LIST-OR-VECTOR to a JSC array.
   ;; LIST-OR-VECTOR should be a list or vector, and its elements
   ;; should be JSC value pointers.
@@ -285,7 +282,7 @@ for cases where specifying other GTypes makes more sense."
         (cons (jsc->scm (jsc-property object (number->string idx)))
               (rec (1+ idx))))))
 
-(define* (jsc-make-object class contents #:optional (context (jsc-make-context)))
+(define* (jsc-make-object class contents #:optional (context (jsc-context-get/make)))
   "Create a JSCValue object with CLASS and CONTENTS (alist) inside it.
 If CLASS is #f, no class is used."
   (let* ((class (or class %null-pointer))
@@ -304,13 +301,9 @@ If CLASS is #f, no class is used."
   (positive? ((foreign-fn "jsc_value_is_object" '(*) unsigned-int) obj)))
 (define (jsc-instance-of? obj parent-name)
   (positive? ((foreign-fn "jsc_value_object_is_instance_of" '(* *) unsigned-int)
-              ;; JSCClass?
-              (if (pointer? obj)
-                  (jsc-class-name obj)
-                  obj)
-              (string->pointer* parent-name))))
+              obj (string->pointer* parent-name))))
 
-(define* (jsc-make-function name callback number-of-args #:optional (context (jsc-make-context)))
+(define* (jsc-make-function name callback number-of-args #:optional (context (jsc-context-get/make)))
   (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*))))
     (apply
      (foreign-fn "jsc_value_new_function"
@@ -328,6 +321,7 @@ If CLASS is #f, no class is used."
 (define (jsc-function? obj)
   (positive? ((foreign-fn "jsc_value_is_function" '(*) unsigned-int) obj)))
 
+;; FIXME: Fails with wrong number of arguments.
 (define (apply-with-args function-name initial-args args)
   (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*))))
     (apply
@@ -356,7 +350,7 @@ If CLASS is #f, no class is used."
 
 ;; JSC-related conversion utilities.
 
-(define* (scm->jsc object #:optional (context (jsc-make-context)))
+(define* (scm->jsc object #:optional (context (jsc-context-get/make)))
   (cond
    ((eq? #:null object) (jsc-make-null context))
    ((eq? #:undefined object) (jsc-make-undefined context))
@@ -373,6 +367,14 @@ If CLASS is #f, no class is used."
    ((list? object) (jsc-make-array object context))
    (else (error "scm->jsc: unknown value passed" object))))
 
+;; Defining here because it depends on scm->jsc.
+(define* (jsc-context-value-set! name value #:optional (context (jsc-context-get/make)))
+  ((foreign-fn "jsc_context_set_value" '(* * *) '*)
+   context (string->pointer* name)
+   (if (pointer? value)
+       value
+       (scm->jsc value))))
+
 (define* (jsc->scm object)
   (cond
    ((not (pointer? object))
@@ -385,17 +387,53 @@ If CLASS is #f, no class is used."
    ((jsc-array? object) (jsc->list object))
    ((jsc-object? object) (error "jsc->scm: object conversion not implemented yet"))))
 
+;; Defining here because it depends on jsc->scm.
+(define* (jsc-context-evaluate* code #:optional (context (jsc-context-get/make)))
+  "Evaluate CODE in CONTEXT, but return Scheme value."
+  (jsc->scm (jsc-context-evaluate code context)))
+
 ;; jsc Scheme types: boolean?, pair?, symbol?, number?, char?, string?, vector?, port?, procedure?
 ;; Guile ones: hash-table? and objects (any predicate for those? record? maybe)
 
-(define* (json->jsc json #:optional (context (jsc-make-context)))
+(define* (json->jsc json #:optional (context (jsc-context-get/make)))
   ((foreign-fn "jsc_value_new_from_json" '(* *) '*)
    context (string->pointer* json)))
 
 (define (jsc->json jsc-value)
-  (pointer->string
+  (pointer->string*
    ((foreign-fn "jsc_value_to_json" (list '* int) '*)
     jsc-value 0)))
+
+;;; Threading primitives
+(define* (jsc-make-error message #:optional (context (jsc-context-get/make)))
+  (jsc-constructor-call
+   (jsc-context-value "Error" context)
+   message))
+
+(define *id* 0)
+(define (get-id)
+  (let ((id *id*))
+    (set! *id* (+ 1 id))
+    id))
+(define *callback-table* (make-hash-table))
+
+(define* (jsc-make-promise success #:key failure default (context (jsc-context-get/make)))
+  (let ((id (get-id)))
+    (jsc-constructor-call
+     (jsc-context-value "Promise" context)
+     (jsc-make-function
+      %null-pointer (lambda (suc fail)
+                      (let check-result ((attempts 0))
+                        (let ((data (hash-ref *callback-table* id)))
+                          (cond
+                           ((and data (jsc-instance-of? data "Error")))
+                           (data data)
+                           ((> attempts 10)
+                            (jsc-make-null))
+                           (else
+                            (check-result (+ 1 attempts)))))))
+      2 context))))
+
 
 ;;; Webkit extensions API
 
