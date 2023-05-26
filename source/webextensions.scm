@@ -405,10 +405,11 @@ If CLASS is #f, no class is used."
     jsc-value 0)))
 
 ;;; Threading primitives
+
 (define* (jsc-make-error message #:optional (context (jsc-context-get/make)))
   (jsc-constructor-call
    (jsc-context-value "Error" context)
-   message))
+   (scm->jsc message)))
 
 (define *id* 0)
 (define (get-id)
