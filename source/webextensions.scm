@@ -321,23 +321,23 @@ If CLASS is #f, no class is used."
 (define (jsc-function? obj)
   (positive? ((foreign-fn "jsc_value_is_function" '(*) unsigned-int) obj)))
 
-;; FIXME: Fails with wrong number of arguments.
 (define (apply-with-args function-name initial-args args)
-  (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*))))
+  (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() unsigned-int))))
     (apply
      (foreign-fn function-name
-                 (append (make-list (length initial-args) '*)
-                         (reduce (lambda (l a)
-                                   (append l (list unsigned-int '*)))
-                                 '()
-                                 args)
-                         (list unsigned-int))
+                 (append
+                  (make-list (length initial-args) '*)
+                  (fold (lambda (a l)
+                          (append l (list unsigned-int '*)))
+                        '()
+                        args)
+                  (list unsigned-int))
                  '*)
      (append initial-args
-             (reduce (lambda (l a)
-                       (append l (list jsc-type a)))
-                     '()
-                     args)
+             (fold (lambda (a l)
+                     (append l (list jsc-type a)))
+                   '()
+                   args)
              ;; G_TYPE_NONE (hopefully portable)
              (list 4)))))
 
