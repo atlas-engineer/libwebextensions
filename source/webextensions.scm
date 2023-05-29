@@ -438,11 +438,14 @@ If CLASS is #f, no class is used."
                       (let check-result ((attempts 0))
                         (let ((data (hash-ref *callback-table* id)))
                           (cond
-                           ((and data (jsc-instance-of? data "Error")))
-                           (data data)
+                           ((and data (jsc-instance-of? data "Error"))
+                            (jsc-function-call failure data))
+                           (data
+                            (jsc-function-call success data))
                            ((> attempts 10)
-                            (jsc-make-null))
+                            (jsc-function-call success default))
                            (else
+                            (sleep 0.1)
                             (check-result (+ 1 attempts)))))))
       2 context))))
 
