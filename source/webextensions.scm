@@ -28,6 +28,13 @@ Converts string to pointers and leaves pointers intact."
     string)
    (else (error "Cannot ensure string pointer for value" string))))
 
+(define (pointer->string* pointer)
+  "Smarter pointer->string.
+Turns null pointers into #f, instead of erroring."
+  (let ((pointer (pointer/false pointer)))
+    (when pointer
+      (pointer->string pointer))))
+
 (define* (procedure->pointer* procedure #:optional arg-types (return-type '*))
   "Smarter procedure->pointer.
 Converts procedures to pointers and leaves pointers intact."
@@ -185,7 +192,7 @@ for cases where specifying other GTypes makes more sense."
 
 (define (jsc-class-name class)
   "Returns string name of CLASS."
-  (pointer->string ((foreign-fn "jsc_class_get_name" '(*) '*) class)))
+  (pointer->string* ((foreign-fn "jsc_class_get_name" '(*) '*) class)))
 (define (jsc-class-parent class)
   "Returns raw JSCClass parent on CLASS."
   ((foreign-fn "jsc_class_get_parent" '(*) '*) class))
@@ -237,7 +244,7 @@ for cases where specifying other GTypes makes more sense."
 (define (jsc-string? jsc)
   (positive? ((foreign-fn "jsc_value_is_string" '(*) unsigned-int) jsc)))
 (define (jsc->string jsc)
-  (pointer->string
+  (pointer->string*
    ((foreign-fn "jsc_value_to_string" (list '*) '*) jsc)))
 
 (define (jsc-property object property-name)
