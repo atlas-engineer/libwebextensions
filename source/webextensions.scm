@@ -78,8 +78,8 @@ Converts procedures to pointers and leaves pointers intact."
   "Create and return a new maybe string (ms) GVariant."
   ((foreign-fn "g_variant_new" '(* *) '*)
    (string->pointer "ms")
-   (if (string? string-or-nothing)
-       string-or-nothing
+   (if string-or-nothing
+       (string->pointer string-or-nothing)
        %null-pointer)))
 
 (define (g-variant-string g-variant)
