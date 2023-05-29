@@ -524,6 +524,31 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
 
 (define *page* #f)
 
+;; UserMessage
+
+(define* (make-message name #:optional (params (make-g-variant #f)))
+  ((foreign-fn "webkit_user_message_new" '(* *) '*)
+   (string->pointer* name)
+   (cond
+    ((string? params)
+     (make-g-variant params))
+    ((pointer? params)
+     params)
+    (else %null-pointer))))
+
+(define (message-name message)
+  (pointer->string*
+   ((foreign-fn "webkit_user_message_get_name" '(*) '*)
+    message)))
+
+(define message-params
+  (foreign-fn "webkit_user_message_get_parameters" '(*) '*))
+
+(define* (message-reply message #:optional (reply (make-message "" (make-g-variant #f))))
+  ((foreign-fn "webkit_user_message_send_reply" '(*) '*)
+   message
+   reply))
+
 ;;; Entry point
 
 (define (entry-webextensions extension-ptr)
