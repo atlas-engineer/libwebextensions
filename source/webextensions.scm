@@ -14,10 +14,14 @@
 
 ;;; General utilities (Glib and FFI)
 
-(define (pointer/false value)
-  (if (eq? %null-pointer value)
+(define (pointer/false pointer)
+  "Return #f is the POINTER is NULL.
+Otherwise return the POINTER itself.
+
+Useful to dispatch NULL/non-NULL pointers on the Scheme-side."
+  (if (eq? %null-pointer pointer)
       #f
-      value))
+      pointer))
 
 (define (string->pointer* string)
   "Smarter string->pointer.
@@ -91,6 +95,8 @@ arglist."
        %null-pointer)))
 
 (define (g-variant-string g-variant)
+  "Fetch the G-VARIANT string, if there's one.
+G-VARIANT is implied to be a maybe string GVariant."
   (let* ((maybe (when (pointer/false g-variant)
                   (pointer/false
                    ((foreign-fn "g_variant_get_maybe" '(*) '*) g-variant)))))
@@ -106,22 +112,32 @@ arglist."
    handler (or data %null-pointer) %null-pointer 0))
 
 (define (make-g-async-callback procedure)
+  "Turn PROCEDURE into a pointer suitable for GAsyncCallback."
   (procedure->pointer* procedure '(* * *) void))
+
+(define (procedure-maximum-arity procedure)
+  (let ((arity (procedure-minimum-arity procedure)))
+    (+ (car arity) (cadr arity))))
 
 ;;; JSCore bindings
 
 ;; JSCContext
 
-(define jsc-make-context
-  (foreign-fn "jsc_context_new" '() '*))
+(define (jsc-make-context)
+  "Create a new empty JSCContext."
+  ((foreign-fn "jsc_context_new" '() '*)))
 
 (define (jsc-context jsc)
+  "Get the context of JSC value."
   (pointer/false ((foreign-fn "jsc_value_get_context" '(*) '*) jsc)))
 
 (define (jsc-context-current)
+  "Get the current context.
+Only makes sense in method/function/property callbacks."
   (pointer/false ((foreign-fn "jsc_context_get_current" '() '*))))
 
 (define (jsc-context-get/make)
+  "Get the current context, or create it if not present."
   (or (jsc-context-current)
       (jsc-make-context)))
 
@@ -136,7 +152,7 @@ Returns raw JSCValue resulting from CODE evaluation."
   (pointer/false ((foreign-fn "jsc_context_get_expression" '(*) '*) context)))
 
 (define* (jsc-context-value name #:optional (context (jsc-context-get/make)))
-  "Returns the JSCValue (as a pointer) bound to NAME in CONTEXT."
+  "Returns the JSCValue (as a pointer to JSCValue) bound to NAME in CONTEXT."
   ((foreign-fn "jsc_context_get_value" '(* *) '*)
    context (string->pointer* name)))
 
@@ -164,7 +180,7 @@ When CALLBACK is not provided, it's implied to be a zero-argument
 function doing nothing."
   (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*)))
         (number-of-args (if callback
-                            (car (procedure-minimum-arity callback))
+                            (procedure-maximum-arity callback)
                             0)))
     (apply
      (foreign-fn "jsc_class_add_constructor"
@@ -181,8 +197,12 @@ function doing nothing."
      (make-list number-of-args jsc-type))))
 
 (define* (jsc-class-add-method class name callback)
+  "Add a NAMEd method to CLASS object.
+
+CALLBACK should be a function with minimum one argument—the instance
+of CLASS. Keyword/rest arguments are not supported."
   (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*)))
-        (number-of-args (car (procedure-minimum-arity callback))))
+        (number-of-args (procedure-maximum-arity callback)))
     (apply
      (foreign-fn "jsc_class_add_method"
                  (append `(* * * * * * ,unsigned-int)
@@ -198,6 +218,7 @@ function doing nothing."
      (make-list number-of-args jsc-type))))
 
 (define* (jsc-class-add-property class name getter-callback setter-callback)
+  "Add a NAME property to JSCClass CLASS."
   ((foreign-fn "jsc_class_add_property"
                `(* * * * * * * *)
                '*)
@@ -219,6 +240,7 @@ function doing nothing."
 ;; JSCValue
 
 (define (jsc-value-context value)
+  "Get context of the VALUE."
   ((foreign-fn "jsc_value_get_context" '(*) '*) value))
 
 ;; NOTE: Don't use undefined when passing objects to/from browser:
@@ -290,15 +312,19 @@ function doing nothing."
               obj (string->pointer* parent-name))))
 
 (define* (jsc-make-function name callback #:optional (context (jsc-context-get/make)))
+  "Create a function with CALLBACK and bind it to NAME.
+If NAME is #f, create an anonymous function."
   (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*)))
-        (number-of-args (car (procedure-minimum-arity callback))))
+        (number-of-args (procedure-maximum-arity callback)))
     (apply
      (foreign-fn "jsc_value_new_function"
                  (append `(* * * * * * ,unsigned-int)
                          (make-list number-of-args '*))
                  '*)
      context
-     (string->pointer* name)
+     (if name
+         (string->pointer* name)
+         %null-pointer)
      (procedure->pointer* callback (make-list number-of-args '*))
      %null-pointer
      %null-pointer
@@ -309,6 +335,8 @@ function doing nothing."
   (positive? ((foreign-fn "jsc_value_is_function" '(*) unsigned-int) obj)))
 
 (define (apply-with-args function-name initial-args args)
+  "Helper for function application functions.
+Applies FUNCTION-NAME to INITIAL-ARGS and ARGS."
   (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() unsigned-int))))
     (apply
      (foreign-fn function-name
@@ -338,6 +366,10 @@ function doing nothing."
 ;; JSC-related conversion utilities.
 
 (define* (scm->jsc object #:optional (context (jsc-context-get/make)))
+  "Convert a Scheme OBJECT to JSCValue.
+Does not support converting to function.
+Converts alists to objects.
+Converts vectors and proper lists to arrays."
   (cond
    ((eq? #:null object) (jsc-make-null context))
    ((eq? #:undefined object) (jsc-make-undefined context))
@@ -356,6 +388,8 @@ function doing nothing."
 
 ;; Defining here because it depends on scm->jsc.
 (define* (jsc-context-value-set! name value #:optional (context (jsc-context-get/make)))
+  "Set the NAMEd value in CONTEXT to a VALUE.
+VALUE can be a Scheme value or a pointer to JSCValue."
   ((foreign-fn "jsc_context_set_value" '(* * *) '*)
    context (string->pointer* name)
    (if (pointer? value)
@@ -363,6 +397,8 @@ function doing nothing."
        (scm->jsc value))))
 
 (define* (jsc->scm object)
+  "Convert JSCValue OBJECT to Scheme thing.
+Does not support objects and functions yet."
   (cond
    ((not (pointer? object))
     (error "jsc->scm: passed non-pointer."))
@@ -380,9 +416,9 @@ function doing nothing."
   (jsc->scm (jsc-context-evaluate code context)))
 
 (define* (jsc-make-array list-or-vector #:optional (context (jsc-context-get/make)))
-  ;; Transform LIST-OR-VECTOR to a JSC array.
-  ;; LIST-OR-VECTOR should be a list or vector, and its elements
-  ;; should be JSC value pointers.
+  "Transform LIST-OR-VECTOR to a JSC array.
+LIST-OR-VECTOR should be a list or vector, and its elements should be
+JSC value pointers."
   (let ((contents (if (vector? list-or-vector)
                       (vector->list list-or-vector)
                       list-or-vector))
@@ -399,6 +435,7 @@ function doing nothing."
     arr))
 
 (define (jsc->list object)
+  "Convert OBJECT JSCValue array into a Scheme list."
   (let rec ((idx 0))
     (if (zero? ((foreign-fn "jsc_value_object_has_property" '(* *) unsigned-int)
                 object (string->pointer (number->string idx))))
@@ -426,10 +463,14 @@ If CLASS is #f, no class is used."
 ;; Guile ones: hash-table? and objects (any predicate for those? record? maybe)
 
 (define* (json->jsc json #:optional (context (jsc-context-get/make)))
+  "Parse JSON into proper JSCValue."
   ((foreign-fn "jsc_value_new_from_json" '(* *) '*)
    context (string->pointer* json)))
 
 (define (jsc->json jsc-value)
+  "Convert a JSC-VALUE into a JSON string.
+BEWARE: undefined is not supported (due to JSON standard excluding it)
+and leads to weird behaviors."
   (pointer->string*
    ((foreign-fn "jsc_value_to_json" (list '* int) '*)
     jsc-value 0)))
@@ -437,18 +478,24 @@ If CLASS is #f, no class is used."
 ;;; Threading primitives
 
 (define* (jsc-make-error message #:optional (context (jsc-context-get/make)))
+  "Create a JS error with MESSAGE."
   (jsc-constructor-call
    (jsc-context-value "Error" context)
    (scm->jsc message)))
 
 (define *id* 0)
 (define (get-id)
+  "Create a new ID."
   (let ((id *id*))
     (set! *id* (+ 1 id))
     id))
 (define *callback-table* (make-hash-table))
 
 (define* (jsc-make-promise success #:key failure default (context (jsc-context-get/make)))
+  "Create a JS promise with SUCCESS running on completion and FAILURE on error.
+SUCCESS/FAILURE is determined based on `*callback-table*' data.
+When the result fetching timeouts (10 seconds), calls SUCCESS on
+DEFAULT."
   (let ((id (get-id)))
     (jsc-constructor-call
      (jsc-context-value "Promise" context)
