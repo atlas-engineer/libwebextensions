@@ -471,6 +471,38 @@ If CLASS is #f, no class is used."
 
 ;;; Webkit extensions API
 
+;; Table from property name to the injection function.
+(define apis (make-hash-table))
+
+(define* (define-api property class #:rest methods)
+  "Register the WebExtensions JS API.
+
+Puts the API initialization function (with the context as the sole
+argument) into the `apis' table.
+
+PROPERTY is the name under which the API is added to browser
+object (i.e. \"browser.bookmarks\" for \"bookmarks\" PROPERTY).
+
+CLASS is the name of the class API is generated from.
+
+METHODS is a property list of name+callback for class methods."
+  (hash-set!
+   apis property
+   (lambda (context)
+     (let* ((class-obj (jsc-context-register-class context class))
+            (constructor (jsc-class-add-constructor class-obj class (lambda () #f))))
+       (letrec ((add-methods
+                 (lambda (meths)
+                   (unless (null? meths)
+                     (jsc-class-add-method class-obj (car meths) (cadr meths))
+                     (add-methods (cddr meths))))))
+         (add-methods methods)
+         (jsc-context-value-set! class constructor context)
+         (jsc-property-set!
+          (jsc-context-value "browser" context)
+          property
+          (jsc-constructor-call constructor)))))))
+
 ;; ContextMenu and ContextMenuItem
 (define (make-context-menu)
   ((foreign-fn "webkit_context_menu_new" '() '*)))
