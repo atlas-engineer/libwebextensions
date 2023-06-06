@@ -8,7 +8,7 @@
   #:export (entry-webextensions))
 
 ;; When developing, try:
-;; (define lib (load-foreign-library "/path/to/lib/libwebkit2gtk-4.1.so"))
+;; (define lib (load-foreign-library "/gnu/store/9hijxiihm6l9260wmjsnk6qndh5asdf6-webkitgtk-2.38.5/lib/libwebkit2gtk-4.1.so"))
 (define lib #f)
 
 ;;; General utilities (Glib and FFI)
@@ -79,7 +79,7 @@ Converts procedures to pointers and leaves pointers intact."
   ((foreign-fn "g_variant_new" '(* *) '*)
    (string->pointer "ms")
    (if string-or-nothing
-       (string->pointer string-or-nothing)
+       (string->pointer* string-or-nothing)
        %null-pointer)))
 
 (define (g-variant-string g-variant)
@@ -96,6 +96,9 @@ Converts procedures to pointers and leaves pointers intact."
    instance
    (string->pointer* signal)
    handler (or data %null-pointer) %null-pointer 0))
+
+(define (make-g-async-callback procedure)
+  (procedure->pointer* procedure '(* * *) void))
 
 ;;; JSCore bindings
 
@@ -517,13 +520,6 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
       (g-signal-connect (context-menu-item-action item) "activate" (procedure->pointer* action '(* *) void)))
     item))
 
-;; WebPage
-
-(define (page-id page)
-  ((foreign-fn "webkit_web_page_get_id" '(*) uint64) page))
-
-(define *page* #f)
-
 ;; UserMessage
 
 (define* (make-message name #:optional (params (make-g-variant #f)))
@@ -544,20 +540,58 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
 (define message-params
   (foreign-fn "webkit_user_message_get_parameters" '(*) '*))
 
-(define* (message-reply message #:optional (reply (make-message "" (make-g-variant #f))))
+(define* (message-reply message
+                        #:optional (reply (make-message (message-name message)
+                                                        (make-g-variant #f))))
   ((foreign-fn "webkit_user_message_send_reply" '(*) '*)
    message
    reply))
 
-;;; Entry point
+;; WebPage
+
+(define (page-id page)
+  ((foreign-fn "webkit_web_page_get_id" '(*) uint64) page))
+
+(define *page* #f)
+
+(define* (page-send-message message
+                            #:optional (callback %null-pointer) (page *page*))
+  ((foreign-fn "webkit_web_page_send_message_to_view" '(* * * * *) void)
+   page message %null-pointer (make-g-async-callback callback) %null-pointer))
+
+;; WebExtension
+
+(define *extension* #f)
+
+(define* (extension-get-page page-id #:optional (extension *extension*))
+  ((foreign-fn "webkit_web_extension_get_page"
+               (list '* unsigned-int) '*)
+   extension page-id))
+
+(define* (extension-send-message
+          message #:optional (callback %null-pointer) (extension *extension*))
+  ((foreign-fn "webkit_web_extension_send_message_to_context" '(* * * * *) void)
+   extension message %null-pointer (make-g-async-callback callback) %null-pointer))
+
+
+;;; Entry point and signal processors
+
+(define (message-received-callback page message)
+  (g-print "Got a message %s with content \n%s\n"
+           (message-name message)
+           (or (g-variant-string (message-params message)) ""))
+  (message-reply message))
+
+(define (page-created-callback extension page)
+  (set! *page* page)
+  (g-print "Page %i created!\n" (page-id page))
+  (g-signal-connect
+   page "user-message-received"
+   (procedure->pointer*
+    message-received-callback '(* *) void)))
 
 (define (entry-webextensions extension-ptr)
   (g-signal-connect
    extension-ptr "page-created"
-   (procedure->pointer
-    void
-    (lambda (extension page)
-      (set! *page* page)
-      (g-print "Page %i created!\n" (page-id page)))
-    '(* *)))
+   (procedure->pointer* page-created-callback '(* *) void))
   (display "WebExtensions Library handlers installed.\n"))
