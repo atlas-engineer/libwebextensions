@@ -2,6 +2,7 @@
 ;;;; SPDX-License-Identifier: BSD-3-Clause
 
 (define-module (webkit-webextensions)
+  #:use-module (system vm program)
   #:use-module (system foreign)
   #:use-module (system foreign-library)
   #:use-module (srfi srfi-1)
@@ -35,9 +36,16 @@ Turns null pointers into #f, instead of erroring."
     (when pointer
       (pointer->string pointer))))
 
-(define* (procedure->pointer* procedure #:optional arg-types (return-type '*))
+(define* (procedure->pointer*
+          procedure
+          #:optional (arg-types (when (procedure? procedure)
+                                  (make-list (car (procedure-minimum-arity procedure)) '*)))
+          (return-type '*))
   "Smarter procedure->pointer.
-Converts procedures to pointers and leaves pointers intact."
+Converts procedures to pointers and leaves pointers intact.
+Also defaults ARG-TYPES and RETURN-TYPE to pointers. In case of
+ARG-TYPES tries to guess the PROCEDURE arity and generate a reasonable
+arglist."
   (cond
    ((and (procedure? procedure)
          (not arg-types))
@@ -144,14 +152,20 @@ Inherits from PARENT-CLASS, if any."
 
 ;; JSCClass
 
-(define* (jsc-class-add-constructor class name callback number-of-args)
+(define* (jsc-class-add-constructor class name #:optional (callback #f))
   "Add a constructor to CLASS with CALLBACK called on object initialization.
 If NAME is #f, use CLASS name.
 
-CALLBACK is generated with NUMBER-OF-ARGS JSCValue inputs and JSCValue
-return type. Using the underlying jsc_class_add_constructor is better
-for cases where specifying other GTypes makes more sense."
-  (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*))))
+CALLBACK is generated with JSCValue arguments and JSCValue return
+type. Using the underlying jsc_class_add_constructor is better for
+cases where specifying other GTypes makes more sense.
+
+When CALLBACK is not provided, it's implied to be a zero-argument
+function doing nothing."
+  (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*)))
+        (number-of-args (if callback
+                            (car (procedure-minimum-arity callback))
+                            0)))
     (apply
      (foreign-fn "jsc_class_add_constructor"
                  (append `(* * * * * * ,unsigned-int)
@@ -166,8 +180,9 @@ for cases where specifying other GTypes makes more sense."
      number-of-args
      (make-list number-of-args jsc-type))))
 
-(define* (jsc-class-add-method class name callback number-of-args)
-  (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*))))
+(define* (jsc-class-add-method class name callback)
+  (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*)))
+        (number-of-args (car (procedure-minimum-arity callback))))
     (apply
      (foreign-fn "jsc_class_add_method"
                  (append `(* * * * * * ,unsigned-int)
@@ -189,8 +204,8 @@ for cases where specifying other GTypes makes more sense."
    class
    (string->pointer* name)
    ((foreign-fn "jsc_value_get_type" '() '*))
-   (procedure->pointer* getter-callback '(*))
-   (procedure->pointer* setter-callback '(*))
+   (procedure->pointer* getter-callback)
+   (procedure->pointer* setter-callback)
    %null-pointer
    %null-pointer))
 
@@ -274,8 +289,9 @@ for cases where specifying other GTypes makes more sense."
   (positive? ((foreign-fn "jsc_value_object_is_instance_of" '(* *) unsigned-int)
               obj (string->pointer* parent-name))))
 
-(define* (jsc-make-function name callback number-of-args #:optional (context (jsc-context-get/make)))
-  (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*))))
+(define* (jsc-make-function name callback #:optional (context (jsc-context-get/make)))
+  (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*)))
+        (number-of-args (car (procedure-minimum-arity callback))))
     (apply
      (foreign-fn "jsc_value_new_function"
                  (append `(* * * * * * ,unsigned-int)
@@ -450,7 +466,7 @@ If CLASS is #f, no class is used."
                            (else
                             (sleep 0.1)
                             (check-result (+ 1 attempts)))))))
-      2 context))))
+      context))))
 
 
 ;;; Webkit extensions API
