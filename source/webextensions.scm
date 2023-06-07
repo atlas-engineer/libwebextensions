@@ -632,13 +632,13 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
    ((foreign-fn "webkit_user_message_get_name" '(*) '*)
     message)))
 
-(define message-params
-  (foreign-fn "webkit_user_message_get_parameters" '(*) '*))
+(define (message-params message)
+  ((foreign-fn "webkit_user_message_get_parameters" '(*) '*) message))
 
 (define* (message-reply message
                         #:optional (reply (make-message (message-name message)
                                                         (make-g-variant #f))))
-  ((foreign-fn "webkit_user_message_send_reply" '(*) '*)
+  ((foreign-fn "webkit_user_message_send_reply" '(*) void)
    message
    reply))
 
@@ -675,7 +675,8 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
   (g-print "Got a message %s with content \n%s\n"
            (message-name message)
            (or (g-variant-string (message-params message)) ""))
-  (message-reply message))
+  (message-reply message)
+  1)
 
 (define (page-created-callback extension page)
   (set! *page* page)
@@ -683,7 +684,8 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
   (g-signal-connect
    page "user-message-received"
    (procedure->pointer*
-    message-received-callback '(* *) void)))
+    message-received-callback '(* *) unsigned-int))
+  (g-print "User message handler installed!\n"))
 
 (define (entry-webextensions extension-ptr)
   (g-signal-connect
