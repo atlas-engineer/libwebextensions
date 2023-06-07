@@ -11,7 +11,6 @@ webkit_web_extension_initialize (WebKitWebExtension *extension)
 {
         scm_init_guile();
         load(source/webextensions.scm);
-        scm_eval_string(scm_from_locale_string(code));
         scm_call_1(scm_c_private_ref("webkit-webextensions", "entry-webextensions"), scm_from_pointer(extension, NULL));
         g_print("Wrapper library loaded!\n");
 }
