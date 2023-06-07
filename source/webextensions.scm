@@ -638,7 +638,7 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
 (define* (message-reply message
                         #:optional (reply (make-message (message-name message)
                                                         (make-g-variant #f))))
-  ((foreign-fn "webkit_user_message_send_reply" '(*) void)
+  ((foreign-fn "webkit_user_message_send_reply" '(* *) void)
    message
    reply))
 
