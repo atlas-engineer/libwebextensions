@@ -60,6 +60,9 @@ arglist."
     procedure)
    (else (error "Cannot ensure procedure pointer for value" procedure))))
 
+;; FIXME: Some of the `foreign-fn' -> `foreign-library-function' ->
+;; `pointer->procedure' fails with wrong ARGS value. Check all the
+;; `foreign-fn' all sites and ensure proper arglist.
 (define (foreign-fn name args return-type)
   "Wrapper around `foreign-library-function' for ease of throwaway C calls."
   (foreign-library-function
