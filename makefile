@@ -7,8 +7,8 @@ PKG_MODULES := glib-2.0 gobject-2.0 webkit2gtk-web-extension-4.1
 # See https://stackoverflow.com/questions/5618615/check-if-a-program-exists-from-a-makefile.
 CC := $(shell command -v $(CC) 2> /dev/null || echo gcc)
 
-CFLAGS += $(shell pkg-config $(PKG_MODULES) --cflags) $(guile-config compile) -fPIC
-LDLIBS += $(shell pkg-config $(PKG_MODULES) --libs) $(guile-config link)
+CFLAGS += $(shell pkg-config $(PKG_MODULES) --cflags) $(shell guile-config compile) -fPIC
+LDLIBS += $(shell pkg-config $(PKG_MODULES) --libs) $(shell guile-config link)
 
 MAKEFILE_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
