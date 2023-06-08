@@ -6,6 +6,7 @@
   #:use-module (system foreign)
   #:use-module (system foreign-library)
   #:use-module (srfi srfi-1)
+  #:use-module (srfi srfi-2)
   #:export (entry-webextensions))
 
 ;; When developing, try:
@@ -36,14 +37,16 @@ Converts string to pointers and leaves pointers intact."
 (define (pointer->string* pointer)
   "Smarter pointer->string.
 Turns null pointers into #f, instead of erroring."
-  (let ((pointer (pointer/false pointer)))
-    (when pointer
-      (pointer->string pointer))))
+  (and-let* ((pointer (pointer/false pointer)))
+    (pointer->string pointer)))
+
+(define (procedure-ffi-arglist procedure)
+  (make-list (car (procedure-minimum-arity procedure)) '*))
 
 (define* (procedure->pointer*
           procedure
           #:optional (arg-types (when (procedure? procedure)
-                                  (make-list (car (procedure-minimum-arity procedure)) '*)))
+                                  (procedure-ffi-arglist procedure)))
           (return-type '*))
   "Smarter procedure->pointer.
 Converts procedures to pointers and leaves pointers intact.
@@ -100,12 +103,11 @@ arglist."
 (define (g-variant-string g-variant)
   "Fetch the G-VARIANT string, if there's one.
 G-VARIANT is implied to be a maybe string GVariant."
-  (let* ((maybe (when (pointer/false g-variant)
-                  (pointer/false
-                   ((foreign-fn "g_variant_get_maybe" '(*) '*) g-variant)))))
-    (when maybe
-      (pointer->string
-       ((foreign-fn "g_variant_get_string" '(*) '*) maybe)))))
+  (and-let* ((g-variant (pointer/false g-variant))
+             (maybe (pointer/false
+                     ((foreign-fn "g_variant_get_maybe" '(*) '*) g-variant))))
+    (pointer->string
+     ((foreign-fn "g_variant_get_string" '(*) '*) maybe))))
 
 (define* (g-signal-connect instance signal handler #:optional (data #f))
   "Connect HANDLER (pointer to procedure) to SIGNAL of INSTANCE."
@@ -115,10 +117,19 @@ G-VARIANT is implied to be a maybe string GVariant."
    handler (or data %null-pointer) %null-pointer 0))
 
 (define (make-g-async-callback procedure)
-  "Turn PROCEDURE into a pointer suitable for GAsyncCallback."
-  (procedure->pointer* procedure '(* * *) void))
+  "Turn PROCEDURE into a pointer suitable for GAsyncCallback.
+PROCEDURE should have
+- 2 requred arguments.
+- 2 required and 1 optional argument.
+- Or 3 requred arguments."
+  (if (or (eq? %null-pointer procedure)
+          (eq? #f procedure))
+      %null-pointer
+      (procedure->pointer* procedure (procedure-ffi-arglist procedure) void)))
 
 (define (procedure-maximum-arity procedure)
+  "Get the maximum possible number of _positional_ arguments for PROCEDURE.
+Counts required and optional arguments, in other words."
   (let ((arity (procedure-minimum-arity procedure)))
     (+ (car arity) (cadr arity))))
 
@@ -130,10 +141,6 @@ G-VARIANT is implied to be a maybe string GVariant."
   "Create a new empty JSCContext."
   ((foreign-fn "jsc_context_new" '() '*)))
 
-(define (jsc-context jsc)
-  "Get the context of JSC value."
-  (pointer/false ((foreign-fn "jsc_value_get_context" '(*) '*) jsc)))
-
 (define (jsc-context-current)
   "Get the current context.
 Only makes sense in method/function/property callbacks."
@@ -144,10 +151,14 @@ Only makes sense in method/function/property callbacks."
   (or (jsc-context-current)
       (jsc-make-context)))
 
+(define (jsc-context-global-object context)
+  "Returns the JSCValue pointer for CONTEXT."
+  ((foreign-fn "jsc_context_get_global_object" '(*) '*) context ))
+
 (define* (jsc-context-evaluate code #:optional (context (jsc-context-get/make)))
   "Evaluate CODE in CONTEXT.
 Returns raw JSCValue resulting from CODE evaluation."
-  ((foreign-fn "jsc_context_evaluate" `(* * ,int) '*)
+  ((foreign-fn "jsc_context_evaluate" `(* * ,unsigned-int) '*)
    context (string->pointer* code) -1))
 
 (define (jsc-context-exception context)
@@ -155,13 +166,15 @@ Returns raw JSCValue resulting from CODE evaluation."
   (pointer/false ((foreign-fn "jsc_context_get_expression" '(*) '*) context)))
 
 (define* (jsc-context-value name #:optional (context (jsc-context-get/make)))
-  "Returns the JSCValue (as a pointer to JSCValue) bound to NAME in CONTEXT."
+  "Returns the JSCValue (as a pointer to JSCValue) bound to NAME in
+CONTEXT."
   ((foreign-fn "jsc_context_get_value" '(* *) '*)
    context (string->pointer* name)))
 
-(define* (jsc-context-register-class context name #:optional (parent-class %null-pointer))
+(define* (jsc-context-register-class
+          name #:optional (context (jsc-context-get/make)) (parent-class %null-pointer))
   "Return a class (JSCClass pointer) registered in CONTEXT under NAME.
-Inherits from PARENT-CLASS, if any."
+Inherits from PARENT-CLASS (JSCClass pointer), if any."
   ((foreign-fn "jsc_context_register_class" '(* * * * *) '*)
    context
    (string->pointer* name)
@@ -171,16 +184,28 @@ Inherits from PARENT-CLASS, if any."
 
 ;; JSCClass
 
-(define* (jsc-class-add-constructor class name #:optional (callback #f))
-  "Add a constructor to CLASS with CALLBACK called on object initialization.
-If NAME is #f, use CLASS name.
+(define (jsc-class-name class)
+  "Returns string name of CLASS."
+  (pointer->string* ((foreign-fn "jsc_class_get_name" '(*) '*) class)))
+
+(define (jsc-class-parent class)
+  "Returns raw JSCClass pointer to the parent of CLASS."
+  ((foreign-fn "jsc_class_get_parent" '(*) '*) class))
+
+(define* (jsc-class-make-constructor class #:optional (name %null-pointer) callback)
+  "Create a constructor for CLASS with CALLBACK called on object initialization.
+
+If NAME is not provided, use CLASS name.
 
 CALLBACK is generated with JSCValue arguments and JSCValue return
 type. Using the underlying jsc_class_add_constructor is better for
 cases where specifying other GTypes makes more sense.
 
 When CALLBACK is not provided, it's implied to be a zero-argument
-function doing nothing."
+function doing nothing.
+
+NOTE: The returned JSCValue pointer should be set to a global value of
+NAME via `jsc-context-value-set!' to become usable."
   (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*)))
         (number-of-args (if callback
                             (procedure-maximum-arity callback)
@@ -192,7 +217,11 @@ function doing nothing."
                  '*)
      class
      (string->pointer* name)
-     (procedure->pointer* callback (make-list number-of-args '*))
+     (procedure->pointer*
+      (or callback
+          (lambda ()
+            (jsc-make-object class '())))
+      (make-list number-of-args '*))
      %null-pointer
      %null-pointer
      jsc-type
@@ -221,7 +250,12 @@ of CLASS. Keyword/rest arguments are not supported."
      (make-list number-of-args jsc-type))))
 
 (define* (jsc-class-add-property class name getter-callback setter-callback)
-  "Add a NAME property to JSCClass CLASS."
+  "Add a NAME property to JSCClass CLASS.
+
+GETTER-CALLBACK should be a procedure with one argument—a CLASS instance.
+
+SETTER-CALLBACK should be a procedure with two arguments—a CLASS
+instance and the new value of the property."
   ((foreign-fn "jsc_class_add_property"
                `(* * * * * * * *)
                '*)
@@ -233,46 +267,40 @@ of CLASS. Keyword/rest arguments are not supported."
    %null-pointer
    %null-pointer))
 
-(define (jsc-class-name class)
-  "Returns string name of CLASS."
-  (pointer->string* ((foreign-fn "jsc_class_get_name" '(*) '*) class)))
-(define (jsc-class-parent class)
-  "Returns raw JSCClass parent on CLASS."
-  ((foreign-fn "jsc_class_get_parent" '(*) '*) class))
-
 ;; JSCValue
 
-(define (jsc-value-context value)
-  "Get context of the VALUE."
+(define (jsc-context value)
+  "Get the context of JSC VALUE.
+Guaranteed to return a non-NULL pointer, because any JSCValue has a
+context it belongs to."
   ((foreign-fn "jsc_value_get_context" '(*) '*) value))
 
 ;; NOTE: Don't use undefined when passing objects to/from browser:
 ;; JSON doesn't support undefined!
 (define* (jsc-make-undefined #:optional (context (jsc-context-get/make)))
   ((foreign-fn "jsc_value_new_undefined" '(*) '*) context))
-(define (jsc-undefined? jsc)
-  (positive? ((foreign-fn "jsc_value_is_undefined" '(*) unsigned-int) jsc)))
+(define (jsc-undefined? value)
+  (positive? ((foreign-fn "jsc_value_is_undefined" '(*) unsigned-int) value)))
 
 (define* (jsc-make-null #:optional (context (jsc-context-get/make)))
   ((foreign-fn "jsc_value_new_null" '(*) '*) context))
-(define (jsc-null? jsc)
-  (positive? ((foreign-fn "jsc_value_is_null" '(*) unsigned-int) jsc)))
+(define (jsc-null? value)
+  (positive? ((foreign-fn "jsc_value_is_null" '(*) unsigned-int) value)))
+
 
 (define* (jsc-make-number num #:optional (context (jsc-context-get/make)))
   ;; Don't call it with complex numbers!!!
-  (if (or (and (complex? num)
-               (positive? (imag-part num)))
-          (and (rational? num)
-               (> (denominator num) 1)))
-      (error "Cannot create JSC number out of complex/ratio number:" num)
-      ((foreign-fn "jsc_value_new_number" (list '* double) '*) context num)))
+  (if (real? num)
+      ((foreign-fn "jsc_value_new_number" (list '* double) '*)
+       context (exact->inexact num))
+      (error "Cannot create JSC number out of non-real number:" num)))
 (define (jsc-number? jsc)
   (positive? ((foreign-fn "jsc_value_is_number" '(*) unsigned-int) jsc)))
 (define (jsc->number jsc)
-  (let ((double ((foreign-fn "jsc_value_to_double" '(*) double) jsc)))
-    (if (integer? double)
-        ((foreign-fn "jsc_value_to_int32" '(*) int32) jsc)
-        double)))
+  ;; No int32 conversions, because most Guile operations convert
+  ;; floats to ints when necessary.
+  ;; TODO: Maybe call inexact->exact on the result?
+  ((foreign-fn "jsc_value_to_double" '(*) double) jsc))
 
 (define* (jsc-make-boolean value #:optional (context (jsc-context-get/make)))
   ((foreign-fn "jsc_value_new_boolean" (list '* unsigned-int) '*)
@@ -283,7 +311,7 @@ of CLASS. Keyword/rest arguments are not supported."
   (positive? ((foreign-fn "jsc_value_to_boolean" '(*) unsigned-int) jsc)))
 
 (define* (jsc-make-string str #:optional (context (jsc-context-get/make)))
-  ((foreign-fn "jsc_value_new_string" (list '* '*) '*)
+  ((foreign-fn "jsc_value_new_string" '(* *) '*)
    context (string->pointer* str)))
 (define (jsc-string? jsc)
   (positive? ((foreign-fn "jsc_value_is_string" '(*) unsigned-int) jsc)))
@@ -302,7 +330,7 @@ of CLASS. Keyword/rest arguments are not supported."
    object (string->pointer* property-name)
    value))
 (define (jsc-property-delete! object property-name)
-  ((foreign-fn "jsc_value_object_set_property" '(* *) void)
+  ((foreign-fn "jsc_value_object_delete_property" '(* *) void)
    object (string->pointer* property-name)))
 
 (define (jsc-array? jsc)
@@ -310,9 +338,14 @@ of CLASS. Keyword/rest arguments are not supported."
 
 (define (jsc-object? obj)
   (positive? ((foreign-fn "jsc_value_is_object" '(*) unsigned-int) obj)))
-(define (jsc-instance-of? obj parent-name)
+(define (jsc-instance-of? obj parent-or-name)
+  "Check whether OBJ is an instance of PARENT-OR-NAME.
+PARENT-OR-NAME is either a JSCClass object or a string name thereof."
   (positive? ((foreign-fn "jsc_value_object_is_instance_of" '(* *) unsigned-int)
-              obj (string->pointer* parent-name))))
+              obj (string->pointer*
+                   (if (pointer? parent-or-name)
+                       (jsc-class-name parent-or-name)
+                       parent-or-name)))))
 
 (define* (jsc-make-function name callback #:optional (context (jsc-context-get/make)))
   "Create a function with CALLBACK and bind it to NAME.
@@ -340,15 +373,12 @@ If NAME is #f, create an anonymous function."
 (define (apply-with-args function-name initial-args args)
   "Helper for function application functions.
 Applies FUNCTION-NAME to INITIAL-ARGS and ARGS."
-  (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() unsigned-int))))
+  (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*))))
     (apply
      (foreign-fn function-name
                  (append
                   (make-list (length initial-args) '*)
-                  (fold (lambda (a l)
-                          (append l (list unsigned-int '*)))
-                        '()
-                        args)
+                  (make-list (* 2 (length args)) '*)
                   (list unsigned-int))
                  '*)
      (append initial-args
@@ -370,10 +400,14 @@ Applies FUNCTION-NAME to INITIAL-ARGS and ARGS."
 
 (define* (scm->jsc object #:optional (context (jsc-context-get/make)))
   "Convert a Scheme OBJECT to JSCValue.
-Does not support converting to function.
 Converts alists to objects.
-Converts vectors and proper lists to arrays."
+Converts vectors and proper lists to arrays.
+Converts procedures to anonymous functions.
+
+If the OBJECT is a pointer, this pointer is implied to be a JSCValue
+already and is returned."
   (cond
+   ((pointer? object) object)
    ((eq? #:null object) (jsc-make-null context))
    ((eq? #:undefined object) (jsc-make-undefined context))
    ((symbol? object) (scm->jsc (symbol->string object)))
@@ -387,20 +421,19 @@ Converts vectors and proper lists to arrays."
          (not (list? (cdr (car object)))))
     (jsc-make-object %null-pointer object context))
    ((list? object) (jsc-make-array object context))
+   ((procedure? object) (jsc-make-function #f object context))
    (else (error "scm->jsc: unknown value passed" object))))
 
 ;; Defining here because it depends on scm->jsc.
 (define* (jsc-context-value-set! name value #:optional (context (jsc-context-get/make)))
   "Set the NAMEd value in CONTEXT to a VALUE.
 VALUE can be a Scheme value or a pointer to JSCValue."
-  ((foreign-fn "jsc_context_set_value" '(* * *) '*)
+  ((foreign-fn "jsc_context_set_value" '(* * *) void)
    context (string->pointer* name)
-   (if (pointer? value)
-       value
-       (scm->jsc value))))
+   (scm->jsc value)))
 
 (define* (jsc->scm object)
-  "Convert JSCValue OBJECT to Scheme thing.
+  "Convert JSCValue OBJECT to a Scheme value.
 Does not support objects and functions yet."
   (cond
    ((not (pointer? object))
@@ -457,12 +490,10 @@ If CLASS is #f, no class is used."
           ((>= idx (length contents)))
         (let ((value (cdr (list-ref contents idx))))
           (jsc-property-set! obj (string->pointer* (car (list-ref contents idx)))
-                             (if (pointer? value)
-                                 value
-                                 (scm->jsc value))))))
+                             (scm->jsc value)))))
     obj))
 
-;; jsc Scheme types: boolean?, pair?, symbol?, number?, char?, string?, vector?, port?, procedure?
+;; Scheme types: boolean?, pair?, symbol?, number?, char?, string?, vector?, port?, procedure?
 ;; Guile ones: hash-table? and objects (any predicate for those? record? maybe)
 
 (define* (json->jsc json #:optional (context (jsc-context-get/make)))
@@ -475,7 +506,7 @@ If CLASS is #f, no class is used."
 BEWARE: undefined is not supported (due to JSON standard excluding it)
 and leads to weird behaviors."
   (pointer->string*
-   ((foreign-fn "jsc_value_to_json" (list '* int) '*)
+   ((foreign-fn "jsc_value_to_json" (list '* unsigned-int) '*)
     jsc-value 0)))
 
 ;;; Threading primitives
@@ -540,7 +571,7 @@ METHODS is a property list of name+callback for class methods."
    apis property
    (lambda (context)
      (let* ((class-obj (jsc-context-register-class context class))
-            (constructor (jsc-class-add-constructor class-obj class (lambda () #f))))
+            (constructor (jsc-class-make-constructor class-obj class (lambda () #f))))
        (letrec ((add-methods
                  (lambda (meths)
                    (unless (null? meths)
@@ -553,7 +584,8 @@ METHODS is a property list of name+callback for class methods."
           property
           (jsc-constructor-call constructor)))))))
 
-;; ContextMenu and ContextMenuItem
+;;; ContextMenu and ContextMenuItem
+
 (define (make-context-menu)
   ((foreign-fn "webkit_context_menu_new" '() '*)))
 
@@ -639,18 +671,18 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
   ((foreign-fn "webkit_user_message_get_parameters" '(*) '*) message))
 
 (define* (message-reply message
-                        #:optional (reply (make-message (message-name message)
-                                                        (make-g-variant #f))))
+                        #:optional (reply (make-message (message-name message))))
   ((foreign-fn "webkit_user_message_send_reply" '(* *) void)
    message
    reply))
 
 ;; WebPage
 
-(define (page-id page)
-  ((foreign-fn "webkit_web_page_get_id" '(*) uint64) page))
-
 (define *page* #f)
+
+(define* (page-id #:optional (page *page*))
+  (when page
+    ((foreign-fn "webkit_web_page_get_id" '(*) uint64) page)))
 
 (define* (page-send-message message
                             #:optional (callback %null-pointer) (page *page*))
@@ -662,8 +694,7 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
 (define *extension* #f)
 
 (define* (extension-get-page page-id #:optional (extension *extension*))
-  ((foreign-fn "webkit_web_extension_get_page"
-               (list '* unsigned-int) '*)
+  ((foreign-fn "webkit_web_extension_get_page" (list '* unsigned-int) '*)
    extension page-id))
 
 (define* (extension-send-message
@@ -675,7 +706,7 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
 ;;; Entry point and signal processors
 
 (define (message-received-callback page message)
-  (g-print "Got a message %s with content \n%s\n"
+  (g-print "Got a message '%s' with content \n'%s'\n"
            (message-name message)
            (or (g-variant-string (message-params message)) ""))
   (message-reply message)
