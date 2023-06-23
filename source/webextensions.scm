@@ -720,7 +720,8 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
                                   '(* *) '*)
                       headers name))))
           (unless (assoc actual-name headers-alist equal?)
-            (assoc-set! headers-alist actual-name actual-value))))))
+            (assoc-set! headers-alist actual-name actual-value))))
+      '(* *) void))
     headers-alist))
 
 (define (request-headers request)
