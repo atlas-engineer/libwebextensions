@@ -707,22 +707,23 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
   (pointer->string*
    ((foreign-fn "webkit_uri_request_get_http_method" '(*) '*) request)))
 
+(define *headers* (make-hash-table))
+
 (define (parse-soup-headers headers)
-  (let ((headers-alist '()))
-    ((foreign-fn "soup_message_headers_foreach" '(* *) void)
-     headers
-     (procedure->pointer*
-      (lambda (name value)
-        (and-let* ((actual-name (pointer->string* name))
-                   (actual-value
-                    (pointer->string*
-                     ((foreign-fn "soup_message_headers_get_list"
-                                  '(* *) '*)
-                      headers name))))
-          (unless (assoc actual-name headers-alist equal?)
-            (assoc-set! headers-alist actual-name actual-value))))
-      '(* *) void))
-    headers-alist))
+  (set! *headers* (make-hash-table))
+  ((foreign-fn "soup_message_headers_foreach" '(* *) void)
+   headers
+   (procedure->pointer*
+    (lambda (name value)
+      (and-let* ((actual-name (pointer->string* name))
+                 (actual-value
+                  (pointer->string*
+                   ((foreign-fn "soup_message_headers_get_list"
+                                '(* *) '*)
+                    headers name))))
+        (hash-set! *headers* actual-name actual-value)))
+    '(* *) void))
+  (hash-map->list (lambda (key value) (cons key value)) *headers*))
 
 (define (request-headers request)
   (parse-soup-headers
@@ -798,6 +799,8 @@ Otherwise replaces NAME value to VALUE."
 
 (define (send-request-callback page request redirected-response)
   (g-print "Sending a request to '%s'\n" (request-uri request))
+  (g-print "Headers are: %s\n"
+           (format #f "~s" (request-headers request)))
   ;; Watch out: this one if NULL more often than not!
   (when (pointer/false redirected-response)
     (g-print "Got a redirection response for '%s' and status %i"
