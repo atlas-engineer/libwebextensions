@@ -807,6 +807,8 @@ Otherwise replaces NAME value to VALUE."
   (when (pointer/false redirected-response)
     (g-print "Got a redirection response for '%s' and status %i"
              (response-uri redirected-response) (response-status-code redirected-response)))
+  ;; 1 = Stop processing, terminate the view.
+  ;; 0 = Continue processing.
   0)
 
 (define (page-created-callback extension page)
