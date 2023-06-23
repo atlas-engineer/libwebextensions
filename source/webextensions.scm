@@ -796,6 +796,14 @@ Otherwise replaces NAME value to VALUE."
   (message-reply message)
   1)
 
+(define (send-request-callback page request redirected-response)
+  (g-print "Sending a request to '%s'\n" (request-uri request))
+  ;; Watch out: this one if NULL more often than not!
+  (when (pointer/false redirected-response)
+    (g-print "Got a redirection response for '%s' and status %i"
+             (response-uri redirected-response) (response-status-code redirected-response)))
+  0)
+
 (define (page-created-callback extension page)
   (set! *page* page)
   (g-print "Page %i created!\n" (page-id page))
@@ -803,7 +811,12 @@ Otherwise replaces NAME value to VALUE."
    page "user-message-received"
    (procedure->pointer*
     message-received-callback '(* *) unsigned-int))
-  (g-print "User message handler installed!\n"))
+  (g-print "User message handler installed!\n")
+  (g-signal-connect
+   page "send-request"
+   (procedure->pointer*
+    send-request-callback '(* * *) unsigned-int))
+  (g-print "Request handler installed!\n"))
 
 (define (entry-webextensions extension-ptr)
   (g-signal-connect
