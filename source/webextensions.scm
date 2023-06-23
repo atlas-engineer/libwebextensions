@@ -689,6 +689,89 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
   ((foreign-fn "webkit_web_page_send_message_to_view" '(* * * * *) void)
    page message %null-pointer (make-g-async-callback callback) %null-pointer))
 
+;; WebKitURIRequest & WebKitURIResponse
+
+(define (make-request uri)
+  ((foreign-fn "webkit_uri_request_new" '(*) '*)
+   (string->pointer* uri)))
+
+(define (request-uri request)
+  (pointer->string*
+   ((foreign-fn "webkit_uri_request_get_uri" '(*) '*) request)))
+
+(define (request-uri-set! request uri)
+  ((foreign-fn "webkit_uri_request_set_uri" '(* *) void)
+   request (string->pointer* uri)))
+
+(define (request-method request)
+  (pointer->string*
+   ((foreign-fn "webkit_uri_request_get_http_method" '(*) '*) request)))
+
+(define (parse-soup-headers headers)
+  (let ((headers-alist '()))
+    ((foreign-fn "soup_message_headers_foreach" '(* *) void)
+     headers
+     (procedure->pointer*
+      (lambda (name value)
+        (and-let* ((actual-name (pointer->string* name))
+                   (actual-value
+                    (pointer->string*
+                     ((foreign-fn "soup_message_headers_get_list"
+                                  '(* *) '*)
+                      headers name))))
+          (unless (assoc actual-name headers-alist equal?)
+            (assoc-set! headers-alist actual-name actual-value))))))
+    headers-alist))
+
+(define (request-headers request)
+  (parse-soup-headers
+   ((foreign-fn "webkit_uri_request_get_http_headers" '(*) '*) request)))
+
+;; TODO: Test whether it works.
+(define* (request-header-set! request name #:optional (value "") append?)
+  "Set a header with NAME to VALUE.
+Appends the header if APPEND? or if NAME is not set yet.
+Otherwise replaces NAME value to VALUE."
+  (let* ((headers (%request-headers request))
+         (name-ptr (string->pointer* name))
+         (value-ptr (string->pointer* value))
+         (prev-value (pointer->string*
+                      ((foreign-fn "soup_message_headers_get_list" '(* *) '*)
+                       headers name-ptr))))
+    ((foreign-fn
+      (cond
+       (append? "soup_message_headers_append")
+       (prev-value "soup_message_headers_replace")
+       (else "soup_message_headers_append"))
+      '(* * *) void)
+     headers name-ptr value-ptr)))
+
+(define (response-uri response)
+  (pointer->string*
+   ((foreign-fn "webkit_uri_response_get_uri" '(*) '*) response)))
+
+(define (response-content-length response)
+  ((foreign-fn "webkit_uri_response_get_content_length" '(*) uint64) response))
+
+(define (response-headers response)
+  (parse-soup-headers
+   ((foreign-fn "webkit_uri_response_get_http_headers" '(*) '*) response)))
+
+(define (response-mime-type response)
+  (pointer->string*
+   ((foreign-fn "webkit_uri_response_get_mime_type" '(*) '*) response)))
+
+(define (response-mime-type response)
+  (pointer->string*
+   ((foreign-fn "webkit_uri_response_get_mime_type" '(*) '*) response)))
+
+(define (response-status-code response)
+  ((foreign-fn "webkit_uri_response_get_status_code" '(*) unsigned-int) response))
+
+(define (response-suggested-filename response)
+  (pointer->string*
+   ((foreign-fn "webkit_uri_response_get_suggested_filename" '(*) '*) response)))
+
 ;; WebExtension
 
 (define *extension* #f)
