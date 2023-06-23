@@ -711,7 +711,6 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
 
 (define (parse-soup-headers headers)
   (set! *headers* (make-hash-table))
-  (g-print "Started processing headers\n")
   (when (pointer/false headers)
     ((foreign-fn "soup_message_headers_foreach" '(* *) void)
      headers
@@ -724,11 +723,8 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
                      ((foreign-fn "soup_message_headers_get_list"
                                   '(* *) '*)
                       headers name))))
-          (g-print "Parsing header %s with value '%s'\n"
-                   actual-name actual-value)
           (hash-set! *headers* actual-name actual-value)))
       '(* *) void)))
-  (g-print "Finished processing headers, turning into a list\n")
   (hash-map->list (lambda (key value) (cons key value)) *headers*))
 
 (define (request-headers request)
