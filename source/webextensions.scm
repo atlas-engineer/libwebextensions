@@ -16,11 +16,12 @@
 ;;; General utilities (Glib and FFI)
 
 (define (pointer/false pointer)
-  "Return #f is the POINTER is NULL.
+  "Return #f is the POINTER is NULL or #f.
 Otherwise return the POINTER itself.
 
 Useful to dispatch NULL/non-NULL pointers on the Scheme-side."
-  (if (eq? %null-pointer pointer)
+  (if (or (eq? %null-pointer pointer)
+          (eq? #f pointer))
       #f
       pointer))
 
