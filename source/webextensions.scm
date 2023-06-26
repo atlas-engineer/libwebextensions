@@ -690,6 +690,11 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
   ((foreign-fn "webkit_web_page_send_message_to_view" '(* * * * *) void)
    page message %null-pointer (make-g-async-callback callback) %null-pointer))
 
+(define (page-main-frame page)
+  "Get the main WebKitFrame associated with PAGE."
+  ((foreign-fn "webkit_web_page_get_main_frame" '(*) '*)
+   page))
+
 ;; WebKitURIRequest & WebKitURIResponse
 
 (define (make-request uri)
