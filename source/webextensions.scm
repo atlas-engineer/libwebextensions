@@ -777,6 +777,49 @@ Otherwise replaces NAME value to VALUE."
   (pointer->string*
    ((foreign-fn "webkit_uri_response_get_suggested_filename" '(*) '*) response)))
 
+;; ScriptWorld
+
+(define (script-world-default)
+  "Get the ScriptWorld for the main frame of the page.
+Should? always return a pointer to ScriptWorld."
+  ((foreign-fn "webkit_script_world_get_default" '() '*)))
+
+(define* (make-script-world #:optional name)
+  (if name
+      ((foreign-fn "webkit_script_world_new_with_name" '(*) '*)
+       (string->pointer* name))
+      ((foreign-fn "webkit_script_world_new" '() '*))))
+
+(define (script-world-name world)
+  "Always returns a string name of the WORLD."
+  (pointer->string*
+   ((foreign-fn "webkit_script_world_get_name" '(*) '*) world)))
+
+;; WebKitFrame
+
+(define (frame-id frame)
+  ((foreign-fn "webkit_frame_get_id" '(*) uint64)
+   frame))
+
+(define (frame-uri frame)
+  (pointer->string*
+   ((foreign-fn "webkit_frame_get_uri" '(*) '*)
+    frame)))
+
+(define (frame-main? frame)
+  (positive?
+   ((foreign-fn "webkit_frame_is_main_frame" '(*) unsigned-int)
+    frame)))
+
+(define* (frame-jsc-context frame #:optional world)
+  (if (pointer/false world)
+      ((foreign-fn "webkit_frame_get_js_context_for_script_world"
+                   '(* *) '*)
+       frame world)
+      ((foreign-fn "webkit_frame_get_js_context"
+                   '(*) '*)
+       frame)))
+
 ;; WebExtension
 
 (define *extension* #f)
