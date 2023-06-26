@@ -350,7 +350,9 @@ PARENT-OR-NAME is either a JSCClass object or a string name thereof."
 
 (define* (jsc-make-function name callback #:optional (context (jsc-context-get/make)))
   "Create a function with CALLBACK and bind it to NAME.
-If NAME is #f, create an anonymous function."
+If NAME is #f, create an anonymous function.
+Implies that CALLBACK returns a valid JSCValue. If it doesn't, returns
+a JSCValue for undefined."
   (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*)))
         (number-of-args (procedure-maximum-arity callback)))
     (apply
@@ -362,7 +364,13 @@ If NAME is #f, create an anonymous function."
      (if name
          (string->pointer* name)
          %null-pointer)
-     (procedure->pointer* callback (make-list number-of-args '*))
+     (procedure->pointer*
+      (lambda* (#:rest args)
+        (let ((value (apply callback args)))
+          (if (pointer? value)
+              value
+              (jsc-make-undefined))))
+      (make-list number-of-args '*))
      %null-pointer
      %null-pointer
      jsc-type
