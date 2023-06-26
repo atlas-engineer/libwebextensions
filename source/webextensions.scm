@@ -229,7 +229,7 @@ NAME via `jsc-context-value-set!' to become usable."
      number-of-args
      (make-list number-of-args jsc-type))))
 
-(define* (jsc-class-add-method class name callback)
+(define* (jsc-class-add-method! class name callback)
   "Add a NAMEd method to CLASS object.
 
 CALLBACK should be a function with minimum one argument—the instance
@@ -250,7 +250,7 @@ of CLASS. Keyword/rest arguments are not supported."
      number-of-args
      (make-list number-of-args jsc-type))))
 
-(define* (jsc-class-add-property class name getter-callback setter-callback)
+(define* (jsc-class-add-property! class name getter-callback setter-callback)
   "Add a NAME property to JSCClass CLASS.
 
 GETTER-CALLBACK should be a procedure with one argument—a CLASS instance.
@@ -584,7 +584,7 @@ METHODS is a property list of name+callback for class methods."
        (letrec ((add-methods
                  (lambda (meths)
                    (unless (null? meths)
-                     (jsc-class-add-method class-obj (car meths) (cadr meths))
+                     (jsc-class-add-method! class-obj (car meths) (cadr meths))
                      (add-methods (cddr meths))))))
          (add-methods methods)
          (jsc-context-value-set! class constructor context)
