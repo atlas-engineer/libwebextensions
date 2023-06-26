@@ -123,10 +123,9 @@ PROCEDURE should have
 - 2 requred arguments.
 - 2 required and 1 optional argument.
 - Or 3 requred arguments."
-  (if (or (eq? %null-pointer procedure)
-          (eq? #f procedure))
-      %null-pointer
-      (procedure->pointer* procedure (procedure-ffi-arglist procedure) void)))
+  (if (pointer/false procedure)
+      (procedure->pointer* procedure (procedure-ffi-arglist procedure) void)
+      %null-pointer))
 
 (define (procedure-maximum-arity procedure)
   "Get the maximum possible number of _positional_ arguments for PROCEDURE.
@@ -144,7 +143,8 @@ Counts required and optional arguments, in other words."
 
 (define (jsc-context-current)
   "Get the current context.
-Only makes sense in method/function/property callbacks."
+Only makes sense in method/function/property callbacks.
+Returns #f outside of them."
   (pointer/false ((foreign-fn "jsc_context_get_current" '() '*))))
 
 (define (jsc-context-get/make)
