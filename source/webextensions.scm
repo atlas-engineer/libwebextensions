@@ -736,7 +736,7 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
   "Set a header with NAME to VALUE.
 Appends the header if APPEND? or if NAME is not set yet.
 Otherwise replaces NAME value to VALUE."
-  (let* ((headers (%request-headers request))
+  (let* ((headers (request-headers request))
          (name-ptr (string->pointer* name))
          (value-ptr (string->pointer* value))
          (prev-value (pointer->string*
