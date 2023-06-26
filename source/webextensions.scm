@@ -137,7 +137,7 @@ Counts required and optional arguments, in other words."
 
 ;; JSCContext
 
-(define (jsc-make-context)
+(define (make-jsc-context)
   "Create a new empty JSCContext."
   ((foreign-fn "jsc_context_new" '() '*)))
 
@@ -150,7 +150,7 @@ Returns #f outside of them."
 (define (jsc-context-get/make)
   "Get the current context, or create it if not present."
   (or (jsc-context-current)
-      (jsc-make-context)))
+      (make-jsc-context)))
 
 (define (jsc-context-global-object context)
   "Returns the JSCValue pointer for CONTEXT."
@@ -172,7 +172,7 @@ CONTEXT."
   ((foreign-fn "jsc_context_get_value" '(* *) '*)
    context (string->pointer* name)))
 
-(define* (jsc-context-register-class
+(define* (jsc-class-register!
           name #:optional (context (jsc-context-get/make)) (parent-class %null-pointer))
   "Return a class (JSCClass pointer) registered in CONTEXT under NAME.
 Inherits from PARENT-CLASS (JSCClass pointer), if any."
@@ -221,7 +221,7 @@ NAME via `jsc-context-value-set!' to become usable."
      (procedure->pointer*
       (or callback
           (lambda ()
-            (jsc-make-object class '())))
+            (make-jsc-object class '())))
       (make-list number-of-args '*))
      %null-pointer
      %null-pointer
@@ -278,18 +278,18 @@ context it belongs to."
 
 ;; NOTE: Don't use undefined when passing objects to/from browser:
 ;; JSON doesn't support undefined!
-(define* (jsc-make-undefined #:optional (context (jsc-context-get/make)))
+(define* (make-jsc-undefined #:optional (context (jsc-context-get/make)))
   ((foreign-fn "jsc_value_new_undefined" '(*) '*) context))
 (define (jsc-undefined? value)
   (positive? ((foreign-fn "jsc_value_is_undefined" '(*) unsigned-int) value)))
 
-(define* (jsc-make-null #:optional (context (jsc-context-get/make)))
+(define* (make-jsc-null #:optional (context (jsc-context-get/make)))
   ((foreign-fn "jsc_value_new_null" '(*) '*) context))
 (define (jsc-null? value)
   (positive? ((foreign-fn "jsc_value_is_null" '(*) unsigned-int) value)))
 
 
-(define* (jsc-make-number num #:optional (context (jsc-context-get/make)))
+(define* (make-jsc-number num #:optional (context (jsc-context-get/make)))
   ;; Don't call it with complex numbers!!!
   (if (real? num)
       ((foreign-fn "jsc_value_new_number" (list '* double) '*)
@@ -303,7 +303,7 @@ context it belongs to."
   ;; TODO: Maybe call inexact->exact on the result?
   ((foreign-fn "jsc_value_to_double" '(*) double) jsc))
 
-(define* (jsc-make-boolean value #:optional (context (jsc-context-get/make)))
+(define* (make-jsc-boolean value #:optional (context (jsc-context-get/make)))
   ((foreign-fn "jsc_value_new_boolean" (list '* unsigned-int) '*)
    context (if value 1 0)))
 (define (jsc-boolean? jsc)
@@ -311,7 +311,7 @@ context it belongs to."
 (define (jsc->boolean jsc)
   (positive? ((foreign-fn "jsc_value_to_boolean" '(*) unsigned-int) jsc)))
 
-(define* (jsc-make-string str #:optional (context (jsc-context-get/make)))
+(define* (make-jsc-string str #:optional (context (jsc-context-get/make)))
   ((foreign-fn "jsc_value_new_string" '(* *) '*)
    context (string->pointer* str)))
 (define (jsc-string? jsc)
@@ -348,7 +348,7 @@ PARENT-OR-NAME is either a JSCClass object or a string name thereof."
                        (jsc-class-name parent-or-name)
                        parent-or-name)))))
 
-(define* (jsc-make-function name callback #:optional (context (jsc-context-get/make)))
+(define* (make-jsc-function name callback #:optional (context (jsc-context-get/make)))
   "Create a function with CALLBACK and bind it to NAME.
 If NAME is #f, create an anonymous function.
 Implies that CALLBACK returns a valid JSCValue. If it doesn't, returns
@@ -369,7 +369,7 @@ a JSCValue for undefined."
         (let ((value (apply callback args)))
           (if (pointer? value)
               value
-              (jsc-make-undefined))))
+              (make-jsc-undefined))))
       (make-list number-of-args '*))
      %null-pointer
      %null-pointer
@@ -417,20 +417,20 @@ If the OBJECT is a pointer, this pointer is implied to be a JSCValue
 already and is returned."
   (cond
    ((pointer? object) object)
-   ((eq? #:null object) (jsc-make-null context))
-   ((eq? #:undefined object) (jsc-make-undefined context))
+   ((eq? #:null object) (make-jsc-null context))
+   ((eq? #:undefined object) (make-jsc-undefined context))
    ((symbol? object) (scm->jsc (symbol->string object)))
    ((keyword? object) (scm->jsc (keyword->symbol object)))
-   ((boolean? object) (jsc-make-boolean object context))
-   ((number? object) (jsc-make-number object context))
-   ((string? object) (jsc-make-string object context))
-   ((vector? object) (jsc-make-array object context))
+   ((boolean? object) (make-jsc-boolean object context))
+   ((number? object) (make-jsc-number object context))
+   ((string? object) (make-jsc-string object context))
+   ((vector? object) (make-jsc-array object context))
    ;; Dotted alist
    ((and (list? object)
          (not (list? (cdr (car object)))))
-    (jsc-make-object %null-pointer object context))
-   ((list? object) (jsc-make-array object context))
-   ((procedure? object) (jsc-make-function #f object context))
+    (make-jsc-object %null-pointer object context))
+   ((list? object) (make-jsc-array object context))
+   ((procedure? object) (make-jsc-function #f object context))
    (else (error "scm->jsc: unknown value passed" object))))
 
 ;; Defining here because it depends on scm->jsc.
@@ -460,7 +460,7 @@ Does not support objects and functions yet."
   "Evaluate CODE in CONTEXT, but return Scheme value."
   (jsc->scm (jsc-context-evaluate code context)))
 
-(define* (jsc-make-array list-or-vector #:optional (context (jsc-context-get/make)))
+(define* (make-jsc-array list-or-vector #:optional (context (jsc-context-get/make)))
   "Transform LIST-OR-VECTOR to a JSC array.
 LIST-OR-VECTOR should be a list or vector, and its elements should be
 JSC value pointers."
@@ -488,7 +488,7 @@ JSC value pointers."
         (cons (jsc->scm (jsc-property object (number->string idx)))
               (rec (1+ idx))))))
 
-(define* (jsc-make-object class contents #:optional (context (jsc-context-get/make)))
+(define* (make-jsc-object class contents #:optional (context (jsc-context-get/make)))
   "Create a JSCValue object with CLASS and CONTENTS (alist) inside it.
 If CLASS is #f, no class is used."
   (let* ((class (or class %null-pointer))
@@ -520,7 +520,7 @@ and leads to weird behaviors."
 
 ;;; Threading primitives
 
-(define* (jsc-make-error message #:optional (context (jsc-context-get/make)))
+(define* (make-jsc-error message #:optional (context (jsc-context-get/make)))
   "Create a JS error with MESSAGE."
   (jsc-constructor-call
    (jsc-context-value "Error" context)
@@ -534,7 +534,7 @@ and leads to weird behaviors."
     id))
 (define *callback-table* (make-hash-table))
 
-(define* (jsc-make-promise success #:key failure default (context (jsc-context-get/make)))
+(define* (make-jsc-promise success #:key failure default (context (jsc-context-get/make)))
   "Create a JS promise with SUCCESS running on completion and FAILURE on error.
 SUCCESS/FAILURE is determined based on `*callback-table*' data.
 When the result fetching timeouts (10 seconds), calls SUCCESS on
@@ -542,7 +542,7 @@ DEFAULT."
   (let ((id (get-id)))
     (jsc-constructor-call
      (jsc-context-value "Promise" context)
-     (jsc-make-function
+     (make-jsc-function
       %null-pointer (lambda (suc fail)
                       (let check-result ((attempts 0))
                         (let ((data (hash-ref *callback-table* id)))
@@ -579,7 +579,7 @@ METHODS is a property list of name+callback for class methods."
   (hash-set!
    apis property
    (lambda (context)
-     (let* ((class-obj (jsc-context-register-class context class))
+     (let* ((class-obj (jsc-class-register! context class))
             (constructor (jsc-class-make-constructor class-obj class (lambda () #f))))
        (letrec ((add-methods
                  (lambda (meths)
@@ -893,7 +893,7 @@ Should? always return a pointer to ScriptWorld."
       (let ((context (frame-jsc-context (page-main-frame page) (script-world-default))))
         (jsc-context-value-set!
          "try_injecting_js_into_default_world"
-         (jsc-make-function
+         (make-jsc-function
           #f (lambda ()
                (g-print "Callback in!"))
           context)
