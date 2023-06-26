@@ -886,4 +886,17 @@ Should? always return a pointer to ScriptWorld."
   (g-signal-connect
    extension-ptr "page-created"
    (procedure->pointer* page-created-callback '(* *) void))
+  (g-signal-connect
+   (script-world-default) "window-object-cleared"
+   (procedure->pointer*
+    (lambda (world page frame)
+      (let ((context (frame-jsc-context (page-main-frame page) (script-world-default))))
+        (jsc-context-value-set!
+         "try_injecting_js_into_default_world"
+         (jsc-make-function
+          #f (lambda ()
+               (g-print "Callback in!"))
+          context)
+         context)))
+    '(* * *) void))
   (display "WebExtensions Library handlers installed.\n"))
