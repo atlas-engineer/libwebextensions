@@ -5,19 +5,20 @@ Right now, it's just a prototype for loading Scheme-based library into WebKit vi
 - compiled with libguile,
 - and then hooked as callbacks into extension signals
 
-Scheme code partially implements JSCore API necesary for JavaScript class and object creation.
+Scheme code implements most of the infrastructure reliable, but it hasn't been tested against the proper WebExtension example yet.
 
 * Building
 
 On Guix, it's enough to:
 #+begin_src sh
   guix shell pkg-config glib gobject-introspection webkitgtk guile -- make
+  cp -f webextensions.so /path/to/nyxt/gtk-extensions/
 #+end_src
 
 
 * To Do:
 - Scheme implementation:
-  - [ ] Complete JSCore support.
-  - [ ] Add WebKitWebExtension support.
+  - [X] Complete JSCore support.
+  - [X] Add WebKitWebExtension support.
   - [ ] Glib/GTK primitives, if necessary.
 - Common Lisp implementation?
