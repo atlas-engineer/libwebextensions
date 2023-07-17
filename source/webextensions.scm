@@ -228,6 +228,8 @@ NAME via `jsc-context-value-set!' to become usable."
      jsc-type
      number-of-args
      (make-list number-of-args jsc-type))))
+(define* (jsc-constructor-call constructor #:rest args)
+  (apply-with-args "jsc_value_constructor_call" (list constructor) args))
 
 (define* (jsc-class-add-method! class name callback)
   "Add a NAMEd method to CLASS object.
@@ -334,9 +336,48 @@ context it belongs to."
   ((foreign-fn "jsc_value_object_delete_property" '(* *) void)
    object (string->pointer* property-name)))
 
+(define* (make-jsc-array list-or-vector #:optional (context (jsc-context-get/make)))
+  "Transform LIST-OR-VECTOR to a JSC array.
+LIST-OR-VECTOR should be a list or vector, and its elements should be
+JSC value pointers."
+  (let ((contents (if (vector? list-or-vector)
+                      (vector->list list-or-vector)
+                      list-or-vector))
+        (arr ((foreign-fn "jsc_value_new_array_from_garray" '(* *) '*)
+              context %null-pointer)))
+    (when (positive? (length contents))
+      (do ((idx 0 (1+ idx)))
+          ((>= idx (length contents)))
+        (let ((value (list-ref contents idx)))
+          (jsc-property-set! arr (string->pointer (number->string idx))
+                             (if (pointer? value)
+                                 value
+                                 (scm->jsc value))))))
+    arr))
 (define (jsc-array? jsc)
   (positive? ((foreign-fn "jsc_value_is_array" '(*) unsigned-int))))
+(define (jsc->list object)
+  "Convert OBJECT JSCValue array into a Scheme list."
+  (let rec ((idx 0))
+    (if (zero? ((foreign-fn "jsc_value_object_has_property" '(* *) unsigned-int)
+                object (string->pointer (number->string idx))))
+        '()
+        (cons (jsc->scm (jsc-property object (number->string idx)))
+              (rec (1+ idx))))))
 
+(define* (make-jsc-object class contents #:optional (context (jsc-context-get/make)))
+  "Create a JSCValue object with CLASS and CONTENTS (alist) inside it.
+If CLASS is #f, no class is used."
+  (let* ((class (or class %null-pointer))
+         (obj ((foreign-fn "jsc_value_new_object" '(* * *) '*)
+               context %null-pointer class)))
+    (when (positive? (length contents))
+      (do ((idx 0 (1+ idx)))
+          ((>= idx (length contents)))
+        (let ((value (cdr (list-ref contents idx))))
+          (jsc-property-set! obj (string->pointer* (car (list-ref contents idx)))
+                             (scm->jsc value)))))
+    obj))
 (define (jsc-object? obj)
   (positive? ((foreign-fn "jsc_value_is_object" '(*) unsigned-int) obj)))
 (define (jsc-instance-of? obj parent-or-name)
@@ -347,6 +388,8 @@ PARENT-OR-NAME is either a JSCClass object or a string name thereof."
                    (if (pointer? parent-or-name)
                        (jsc-class-name parent-or-name)
                        parent-or-name)))))
+(define* (jsc-object-call-method object name #:rest args)
+  (apply-with-args "jsc_value_object_invoke_method" (list object (string->pointer* name)) args))
 
 (define* (make-jsc-function name callback #:optional (context (jsc-context-get/make)))
   "Create a function with CALLBACK and bind it to NAME.
@@ -400,10 +443,6 @@ Applies FUNCTION-NAME to INITIAL-ARGS and ARGS."
 
 (define* (jsc-function-call function #:rest args)
   (apply-with-args "jsc_value_function_call" (list function) args))
-(define* (jsc-constructor-call constructor #:rest args)
-  (apply-with-args "jsc_value_constructor_call" (list constructor) args))
-(define* (jsc-object-call-method object name #:rest args)
-  (apply-with-args "jsc_value_object_invoke_method" (list object (string->pointer* name)) args))
 
 ;; JSC-related conversion utilities.
 
@@ -459,48 +498,6 @@ Does not support objects and functions yet."
 (define* (jsc-context-evaluate* code #:optional (context (jsc-context-get/make)))
   "Evaluate CODE in CONTEXT, but return Scheme value."
   (jsc->scm (jsc-context-evaluate code context)))
-
-(define* (make-jsc-array list-or-vector #:optional (context (jsc-context-get/make)))
-  "Transform LIST-OR-VECTOR to a JSC array.
-LIST-OR-VECTOR should be a list or vector, and its elements should be
-JSC value pointers."
-  (let ((contents (if (vector? list-or-vector)
-                      (vector->list list-or-vector)
-                      list-or-vector))
-        (arr ((foreign-fn "jsc_value_new_array_from_garray" '(* *) '*)
-              context %null-pointer)))
-    (when (positive? (length contents))
-      (do ((idx 0 (1+ idx)))
-          ((>= idx (length contents)))
-        (let ((value (list-ref contents idx)))
-          (jsc-property-set! arr (string->pointer (number->string idx))
-                             (if (pointer? value)
-                                 value
-                                 (scm->jsc value))))))
-    arr))
-
-(define (jsc->list object)
-  "Convert OBJECT JSCValue array into a Scheme list."
-  (let rec ((idx 0))
-    (if (zero? ((foreign-fn "jsc_value_object_has_property" '(* *) unsigned-int)
-                object (string->pointer (number->string idx))))
-        '()
-        (cons (jsc->scm (jsc-property object (number->string idx)))
-              (rec (1+ idx))))))
-
-(define* (make-jsc-object class contents #:optional (context (jsc-context-get/make)))
-  "Create a JSCValue object with CLASS and CONTENTS (alist) inside it.
-If CLASS is #f, no class is used."
-  (let* ((class (or class %null-pointer))
-         (obj ((foreign-fn "jsc_value_new_object" '(* * *) '*)
-               context %null-pointer class)))
-    (when (positive? (length contents))
-      (do ((idx 0 (1+ idx)))
-          ((>= idx (length contents)))
-        (let ((value (cdr (list-ref contents idx))))
-          (jsc-property-set! obj (string->pointer* (car (list-ref contents idx)))
-                             (scm->jsc value)))))
-    obj))
 
 ;; Scheme types: boolean?, pair?, symbol?, number?, char?, string?, vector?, port?, procedure?
 ;; Guile ones: hash-table? and objects (any predicate for those? record? maybe)
