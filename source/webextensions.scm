@@ -790,6 +790,62 @@ Otherwise replaces NAME value to VALUE."
   (pointer->string*
    ((foreign-fn "webkit_uri_response_get_suggested_filename" '(*) '*) response)))
 
+;; URI parsing
+
+(define (parse-uri uri-string)
+  "Parses URI-STRING and returns a list of (strings, unless stated otherwise):
+- Scheme.
+- User.
+- Password.
+- Auth params.
+- Host.
+- Port.
+- Path.
+- Query params (alist).
+- Fragment."
+  (and-let* ((g-uri (pointer/false
+                     ((foreign-fn "g_uri_parse" `(* ,unsigned-int *) '*)
+                      (string->pointer* uri-string)
+                      ;; The most lenient set of settings.
+                      (+ 1    ;; G_URI_FLAGS_PARSE_RELAXED
+                         2    ;; G_URI_FLAGS_HAS_PASSWORD
+                         4    ;; G_URI_FLAGS_HAS_AUTH_PARAMS
+                         16   ;; G_URI_FLAGS_NON_DNS
+                         256) ;; G_URI_FLAGS_SCHEME_NORMALIZE
+                      %null-pointer)))
+             (get (lambda (fn)
+                    (pointer->string* ((foreign-fn fn '(*) '*) g-uri)))))
+    (list (get "g_uri_get_scheme")
+          (get "g_uri_get_user")
+          (get "g_uri_get_password")
+          (get "g_uri_get_auth_params")
+          (get "g_uri_get_host")
+          ((foreign-fn "g_uri_get_port" '(*) unsigned-int) g-uri)
+          (get "g_uri_get_path")
+          (and-let* ((query-hash
+                      (pointer/false
+                       ((foreign-fn "g_uri_parse_params"
+                                    `(* ,int * ,unsigned-int *)
+                                    '*)
+                        ((foreign-fn "g_uri_get_query" '(*) '*) g-uri)
+                        -1
+                        (string->pointer* "&;")
+                        (+
+                         2  ;; G_URI_PARAMS_WWW_FORM
+                         4) ;; G_URI_PARAMS_PARSE_RELAXED
+                        %null-pointer)))
+                     (params (make-hash-table)))
+            ((foreign-fn "g_hash_table_foreach" '(* * *) void)
+             query-hash
+             (procedure->pointer*
+              (lambda (key value)
+                (hash-set! params (pointer->string* key) (pointer->string* value)))
+              '(* *)
+              void)
+             %null-pointer)
+            (hash-map->list (lambda (key value) (cons key value)) params))
+          (get "g_uri_get_fragment"))))
+
 ;; ScriptWorld
 
 (define (script-world-default)
