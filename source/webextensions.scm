@@ -5,8 +5,9 @@
   #:use-module (system vm program)
   #:use-module (system foreign)
   #:use-module (system foreign-library)
-  #:use-module (srfi srfi-1)
-  #:use-module (srfi srfi-2)
+  #:use-module (srfi srfi-1) ;; List processing.
+  #:use-module (srfi srfi-2) ;; and-let*
+  #:use-module (srfi srfi-9) ;; Record types.
   #:export (entry-webextensions))
 
 ;; When developing, try:
