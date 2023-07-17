@@ -5,7 +5,7 @@ Right now, it's just a prototype for loading Scheme-based library into WebKit vi
 - compiled with libguile,
 - and then hooked as callbacks into extension signals
 
-Scheme code implements most of the infrastructure reliable, but it hasn't been tested against the proper WebExtension example yet.
+Scheme code implements most of the infrastructure reliably enough, but it hasn't been tested against the proper WebExtension example yet.
 
 * Building
 
