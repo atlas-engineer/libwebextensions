@@ -905,10 +905,17 @@ Should? always return a pointer to ScriptWorld."
 
 ;;; Entry point and signal processors
 
+(define *web-extensions* (make-hash-table))
+
 (define (message-received-callback page message)
   (g-print "Got a message '%s' with content \n'%s'\n"
            (message-name message)
            (or (g-variant-string (message-params message)) ""))
+  (and-let* ((string (g-variant-string (message-params message)))
+             (jsc (json->jsc string)))
+    (cond
+     ((equal? string "addExtension")
+      (hash-set! *web-extensions* (jsc-property jsc "name") jsc))))
   (message-reply message)
   1)
 
