@@ -106,10 +106,20 @@ arglist."
   "Fetch the G-VARIANT string, if there's one.
 G-VARIANT is implied to be a maybe string GVariant."
   (and-let* ((g-variant (pointer/false g-variant))
-             (maybe (pointer/false
-                     ((foreign-fn "g_variant_get_maybe" '(*) '*) g-variant))))
-    (pointer->string
-     ((foreign-fn "g_variant_get_string" '(*) '*) maybe))))
+             (class (integer->char
+                     ((foreign-fn "g_variant_classify" '(*) unsigned-int) g-variant)))
+             (get (lambda (name g-variant)
+                    (pointer/false ((foreign-fn name '(*) '*) g-variant)))))
+    (cond
+     ((and (eq? class #\m)
+           (get "g_variant_get_maybe" g-variant))
+      (pointer->string
+       (get "g_variant_get_string"
+            (get "g_variant_get_maybe" g-variant) )))
+     ((eq? class #\s)
+      (get "g_variant_get_string" g-variant))
+     (else
+      (get "g_variant_get_string" g-variant)))))
 
 (define* (g-signal-connect instance signal handler #:optional (data #f))
   "Connect HANDLER (pointer to procedure) to SIGNAL of INSTANCE."
