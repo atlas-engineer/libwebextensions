@@ -915,6 +915,20 @@ Should? always return a pointer to ScriptWorld."
 
 (define *web-extensions* (make-hash-table))
 
+(define-record-type <web-extension>
+  (%make-web-extension name jsc world)
+  web-extension?
+  (name we-name)
+  (jsc we-jsc)
+  (world we-world)
+  (browser we-browser we-browser-set!))
+
+(define (make-web-extension name jsc)
+  (%make-web-extension name jsc (make-script-world name)))
+
+(define (we-context web-extension)
+  (frame-jsc-context (page-main-frame *page*) (we-world web-extension)))
+
 (define (message-received-callback page message)
   (g-print "Got a message '%s' with content \n'%s'\n"
            (message-name message)
@@ -923,7 +937,8 @@ Should? always return a pointer to ScriptWorld."
              (jsc (json->jsc string)))
     (cond
      ((equal? string "addExtension")
-      (hash-set! *web-extensions* (jsc-property jsc "name") jsc))))
+      (hash-set! *web-extensions* (jsc-property jsc "name")
+                 (make-web-extension (jsc-property jsc "name") jsc)))))
   (message-reply message)
   1)
 
