@@ -588,7 +588,7 @@ METHODS is a property list of name+callback for class methods."
    apis property
    (lambda (context)
      (let* ((class-obj (jsc-class-register! context class))
-            (constructor (jsc-class-make-constructor class-obj class (lambda () #f))))
+            (constructor (jsc-class-make-constructor class-obj)))
        (letrec ((add-methods
                  (lambda (meths)
                    (unless (null? meths)
