@@ -604,8 +604,8 @@ METHODS is a property list of name+callback for class methods."
 (define (inject-browser context)
   (let* ((class (jsc-class-register! "Browser" context))
          (constructor (jsc-class-make-constructor class)))
-    (jsc-context-value-set! context "Browser" constructor)
-    (jsc-context-value-set! context "browser" (make-jsc-object class '()))))
+    (jsc-context-value-set! "Browser" constructor context)
+    (jsc-context-value-set! "browser" (make-jsc-object class '()) context)))
 
 ;;; ContextMenu and ContextMenuItem
 
