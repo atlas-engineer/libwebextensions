@@ -897,7 +897,7 @@ Should? always return a pointer to ScriptWorld."
                    '(*) '*)
        frame)))
 
-;; WebExtension
+;; WebKitWebExtension
 
 (define *extension* #f)
 
@@ -911,7 +911,7 @@ Should? always return a pointer to ScriptWorld."
    extension message %null-pointer (make-g-async-callback callback) %null-pointer))
 
 
-;;; Entry point and signal processors
+;;; WebExtension representation
 
 (define *web-extensions* (make-hash-table))
 
@@ -928,6 +928,8 @@ Should? always return a pointer to ScriptWorld."
 
 (define (we-context web-extension)
   (frame-jsc-context (page-main-frame *page*) (we-world web-extension)))
+
+;;; Entry point and signal processors
 
 (define (message-received-callback page message)
   (g-print "Got a message '%s' with content \n'%s'\n"
