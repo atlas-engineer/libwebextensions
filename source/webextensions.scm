@@ -601,6 +601,12 @@ METHODS is a property list of name+callback for class methods."
           property
           (jsc-constructor-call constructor)))))))
 
+(define (inject-browser context)
+  (let* ((class (jsc-class-register! "Browser" context))
+         (constructor (jsc-class-make-constructor class)))
+    (jsc-context-value-set! context "Browser" constructor)
+    (jsc-context-value-set! context "browser" (make-jsc-object class '()))))
+
 ;;; ContextMenu and ContextMenuItem
 
 (define (make-context-menu)
@@ -985,6 +991,7 @@ Should? always return a pointer to ScriptWorld."
           #f (lambda ()
                (g-print "Callback in!"))
           context)
-         context)))
+         context)
+        (inject-browser context)))
     '(* * *) void))
   (display "WebExtensions Library handlers installed.\n"))
