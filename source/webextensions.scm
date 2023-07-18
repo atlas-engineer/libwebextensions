@@ -173,6 +173,17 @@ Returns raw JSCValue resulting from CODE evaluation."
   ((foreign-fn "jsc_context_evaluate" `(* * ,unsigned-int) '*)
    context (string->pointer* code) -1))
 
+(define* (jsc-context-evaluate* code #:optional (context (jsc-context-get/make)))
+  "Evaluate CODE in CONTEXT, but return Scheme value."
+  (jsc->scm (jsc-context-evaluate code context)))
+
+(define* (jsc-context-value-set! name value #:optional (context (jsc-context-get/make)))
+  "Set the NAMEd value in CONTEXT to a VALUE.
+VALUE can be a Scheme value or a pointer to JSCValue."
+  ((foreign-fn "jsc_context_set_value" '(* * *) void)
+   context (string->pointer* name)
+   (scm->jsc value)))
+
 (define (jsc-context-exception context)
   "Return the last JSCException in CONTEXT."
   (pointer/false ((foreign-fn "jsc_context_get_expression" '(*) '*) context)))
@@ -483,14 +494,6 @@ already and is returned."
    ((procedure? object) (make-jsc-function #f object context))
    (else (error "scm->jsc: unknown value passed" object))))
 
-;; Defining here because it depends on scm->jsc.
-(define* (jsc-context-value-set! name value #:optional (context (jsc-context-get/make)))
-  "Set the NAMEd value in CONTEXT to a VALUE.
-VALUE can be a Scheme value or a pointer to JSCValue."
-  ((foreign-fn "jsc_context_set_value" '(* * *) void)
-   context (string->pointer* name)
-   (scm->jsc value)))
-
 (define* (jsc->scm object)
   "Convert JSCValue OBJECT to a Scheme value.
 Does not support objects and functions yet."
@@ -504,11 +507,6 @@ Does not support objects and functions yet."
    ((jsc-number? object) (jsc->number object))
    ((jsc-array? object) (jsc->list object))
    ((jsc-object? object) (error "jsc->scm: object conversion not implemented yet"))))
-
-;; Defining here because it depends on jsc->scm.
-(define* (jsc-context-evaluate* code #:optional (context (jsc-context-get/make)))
-  "Evaluate CODE in CONTEXT, but return Scheme value."
-  (jsc->scm (jsc-context-evaluate code context)))
 
 ;; Scheme types: boolean?, pair?, symbol?, number?, char?, string?, vector?, port?, procedure?
 ;; Guile ones: hash-table? and objects (any predicate for those? record? maybe)
