@@ -580,7 +580,7 @@ DEFAULT."
 
 ;;; Webkit extensions API
 
-;; Table from property name to the injection function.
+;; Table from browser subproperty name to the injection function.
 (define *apis* (make-hash-table))
 
 (define* (define-api property class #:rest methods)
