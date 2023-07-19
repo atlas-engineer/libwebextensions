@@ -365,6 +365,15 @@ context it belongs to."
        (number->string obj)
        obj)))
 
+(define (jsc-properties object)
+  "Get a list of string for all the properties in OBJECT."
+  (let* ((ffi-props ((foreign-fn "jsc_value_object_enumerate_properties" '(*) '*) object))
+         (props (let destructure ((idx 0))
+                  (if (null-pointer? (last (parse-c-struct ffi-props (make-list (+ 1 idx) '*))))
+                      (map pointer->string* (parse-c-struct ffi-props (make-list idx '*)))
+                      (destructure (+ 1 idx))))))
+    ((foreign-fn "g_strfreev" '(*) void) ffi-props)
+    props))
 (define (jsc-property object property-name)
   ((foreign-fn "jsc_value_object_get_property" '(* *) '*)
    object (ensure-index property-name)))
