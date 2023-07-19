@@ -1021,9 +1021,26 @@ Should? always return a pointer to ScriptWorld."
          "try_injecting_js_into_default_world"
          (make-jsc-function
           #f (lambda ()
-               (g-print "Callback in!"))
+               (g-print "Callback in!")
+               (make-jsc-null))
           context)
          context)
-        (inject-browser context)))
+        (inject-browser context)
+        (let ((number 8))
+          ((define-api
+             "test" "Test"
+             (list "prop" #:property
+                   (lambda (instance)
+                     (g-print "Calling getter for prop\n")
+                     (make-jsc-number number))
+                   (lambda (instance value)
+                     (g-print "Calling setter for prop with %s\n" (format #f "~s" (jsc->scm value)))
+                     (set! number (jsc->scm value))
+                     value))
+             (list "method" #:method
+                   (lambda (instance arg)
+                     (g-print "Calling method with %s\n" (format #f "~s" (jsc->scm arg)))
+                     (scm->jsc (+ (jsc->scm arg) number)))))
+           context))))
     '(* * *) void))
   (display "WebExtensions Library handlers installed.\n"))
