@@ -605,16 +605,17 @@ where TYPE is one of:
   (hash-set!
    *apis* property
    (lambda (context)
-     (let* ((class-obj (jsc-class-register! context class))
+     (let* ((class-obj (jsc-class-register! class context))
             (constructor (jsc-class-make-constructor class-obj)))
        (letrec ((add-methods/properties
                  (lambda (meths/props)
                    (unless (null? meths/props)
-                     (let ((name (list-ref meths/props 0))
-                           (type (list-ref meths/props 1))
-                           (function (list-ref meths/props 2))
-                           (setter (when (= 4 (length meths/props))
-                                     (list-ref meths/props 3))))
+                     (let* ((meth/prop (car meths/props))
+                            (name (list-ref meth/prop 0))
+                            (type (list-ref meth/prop 1))
+                            (function (list-ref meth/prop 2))
+                            (setter (when (= 4 (length meth/prop))
+                                      (list-ref meth/prop 3))))
                        (cond
                         ((eq? #:method type)
                          (jsc-class-add-method! class-obj name function))
