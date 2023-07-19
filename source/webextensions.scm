@@ -274,7 +274,7 @@ of CLASS. Keyword/rest arguments are not supported."
      number-of-args
      (make-list number-of-args jsc-type))))
 
-(define* (jsc-class-add-property! class name getter-callback setter-callback)
+(define* (jsc-class-add-property! class name getter-callback #:optional setter-callback)
   "Add a NAME property to JSCClass CLASS.
 
 GETTER-CALLBACK should be a procedure with one argument—a CLASS
@@ -287,7 +287,8 @@ It is recommended that GETTER-CALLBACK returns JSCValue, though—
 `scm->jsc' is not perfect.
 
 SETTER-CALLBACK should be a procedure with two arguments—a CLASS
-instance and the new value of the property."
+instance and the new value of the property. In case SETTER-CALLBACK is
+not provided, generate a dummy one doing nothing."
   ((foreign-fn "jsc_class_add_property"
                `(* * * * * * *)
                '*)
@@ -297,7 +298,9 @@ instance and the new value of the property."
    (procedure->pointer* (lambda (instance)
                           (let ((value (getter-callback instance)))
                             (scm->jsc value))))
-   (procedure->pointer* setter-callback)
+   (procedure->pointer* (or setter-callback
+                            (lambda (instance value)
+                              (make-jsc-null))))
    %null-pointer
    %null-pointer))
 
