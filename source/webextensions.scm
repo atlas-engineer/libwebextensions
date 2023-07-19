@@ -289,7 +289,9 @@ It is recommended that GETTER-CALLBACK returns JSCValue, though—
 
 SETTER-CALLBACK should be a procedure with two arguments—a CLASS
 instance and the new value of the property. In case SETTER-CALLBACK is
-not provided, generate a dummy one doing nothing."
+not provided, generate a dummy one doing nothing.
+
+WARNING: Ensure that SETTER-CALLBACK returns a value!"
   ((foreign-fn "jsc_class_add_property"
                `(* * * * * * *)
                '*)
