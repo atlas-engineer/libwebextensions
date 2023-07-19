@@ -580,13 +580,13 @@ DEFAULT."
 ;;; Webkit extensions API
 
 ;; Table from property name to the injection function.
-(define apis (make-hash-table))
+(define *apis* (make-hash-table))
 
 (define* (define-api property class #:rest methods)
   "Register the WebExtensions JS API.
 
 Puts the API initialization function (with the context as the sole
-argument) into the `apis' table.
+argument) into the Scheme-side `*apis*' table.
 
 PROPERTY is the name under which the API is added to browser
 object (i.e. \"browser.bookmarks\" for \"bookmarks\" PROPERTY).
@@ -595,7 +595,7 @@ CLASS is the name of the class API is generated from.
 
 METHODS is a property list of name+callback for class methods."
   (hash-set!
-   apis property
+   *apis* property
    (lambda (context)
      (let* ((class-obj (jsc-class-register! context class))
             (constructor (jsc-class-make-constructor class-obj)))
