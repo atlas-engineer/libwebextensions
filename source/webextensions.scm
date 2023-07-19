@@ -591,19 +591,32 @@ argument) into the Scheme-side `*apis*' table.
 PROPERTY is the name under which the API is added to browser
 object (i.e. \"browser.bookmarks\" for \"bookmarks\" PROPERTY).
 
-CLASS is the name of the class API is generated from.
+CLASS is the string name of the class API is generated from.
 
-METHODS is a property list of name+callback for class methods."
+METHODS is a list of (NAME TYPE FUNCTION &OPTIONAL SETTER-FUNCTION),
+where TYPE is one of:
+- #:PROPERTY---FUNCTION is a getter, SETTER-FUNCTION is a setter.
+  - In case SETTER-FUNCTION is not provided, generate dummy setter.
+  - In case FUNCTION is an atom, create getter returning the atom.
+- #:METHOD---method acting on the instance of CLASS."
   (hash-set!
    *apis* property
    (lambda (context)
      (let* ((class-obj (jsc-class-register! context class))
             (constructor (jsc-class-make-constructor class-obj)))
-       (letrec ((add-methods
-                 (lambda (meths)
+       (letrec ((add-methods/properties
+                 (lambda (meths/props)
                    (unless (null? meths)
-                     (jsc-class-add-method! class-obj (car meths) (cadr meths))
-                     (add-methods (cddr meths))))))
+                     (let ((name (list-ref meths/props 0))
+                           (type (list-ref meths/props 1))
+                           (function (list-ref meths/props 2))
+                           (setter (cadddr meths/props)))
+                       (cond
+                        ((eq? #:method type)
+                         (jsc-class-add-method! class-obj (car meths) (cadr meths)))
+                        ((eq? #:property type)
+                         (jsc-class-add-property! class-obj name function)))
+                       (add-methods/properties (cdr meths/props)))))))
          (add-methods methods)
          (jsc-context-value-set! class constructor context)
          (jsc-property-set!
