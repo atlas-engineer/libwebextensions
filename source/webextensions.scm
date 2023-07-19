@@ -513,8 +513,9 @@ already and is returned."
   "Convert JSCValue OBJECT to a Scheme value.
 Does not support objects and functions yet."
   (cond
-   ((not (pointer? object))
-    (error "jsc->scm: passed non-pointer."))
+   ;; If it's not a pointer, then it's a Scheme value already. Return
+   ;; it as is.
+   ((not (pointer? object)) object)
    ((jsc-null? object) #:null)
    ((jsc-undefined? object) #:undefined)
    ((jsc-boolean? object) (jsc->boolean object))
