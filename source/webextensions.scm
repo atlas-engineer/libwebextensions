@@ -359,19 +359,25 @@ context it belongs to."
   (pointer->string*
    ((foreign-fn "jsc_value_to_string" (list '*) '*) jsc)))
 
+(define (ensure-index obj)
+  (string->pointer*
+   (if (integer? obj)
+       (number->string obj)
+       obj)))
+
 (define (jsc-property object property-name)
   ((foreign-fn "jsc_value_object_get_property" '(* *) '*)
-   object (string->pointer* property-name)))
+   object (ensure-index property-name)))
 (define (jsc-property? object property-name)
   ((foreign-fn "jsc_value_object_has_property" '(* *) '*)
-   object (string->pointer* property-name)))
+   object (ensure-index property-name)))
 (define (jsc-property-set! object property-name value)
   ((foreign-fn "jsc_value_object_set_property" '(* * *) void)
-   object (string->pointer* property-name)
-   value))
+   object (ensure-index property-name)
+   (scm->jsc value)))
 (define (jsc-property-delete! object property-name)
   ((foreign-fn "jsc_value_object_delete_property" '(* *) void)
-   object (string->pointer* property-name)))
+   object (ensure-index property-name)))
 
 (define* (make-jsc-array list-or-vector #:optional (context (jsc-context-get/make)))
   "Transform LIST-OR-VECTOR to a JSC array.
@@ -396,11 +402,10 @@ JSC value pointers."
 (define (jsc->list object)
   "Convert OBJECT JSCValue array into a Scheme list."
   (let rec ((idx 0))
-    (if (zero? ((foreign-fn "jsc_value_object_has_property" '(* *) unsigned-int)
-                object (string->pointer (number->string idx))))
-        '()
+    (if (jsc-property? object idx)
         (cons (jsc->scm (jsc-property object (number->string idx)))
-              (rec (1+ idx))))))
+              (rec (1+ idx)))
+        '())))
 
 (define* (make-jsc-object class contents #:optional (context (jsc-context-get/make)))
   "Create a JSCValue object with CLASS and CONTENTS (alist) inside it.
