@@ -256,8 +256,9 @@ NAME via `jsc-context-value-set!' to become usable."
 (define* (jsc-class-add-method! class name callback)
   "Add a NAMEd method to CLASS object.
 
-CALLBACK should be a function with minimum one argument—the instance
-of CLASS. Keyword/rest arguments are not supported."
+CALLBACK should be a JSCValue-returning function with minimum one
+argument—the instance of CLASS. Keyword/rest arguments are not
+supported."
   (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*)))
         (number-of-args (procedure-maximum-arity callback)))
     (apply
