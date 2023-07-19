@@ -602,7 +602,10 @@ where TYPE is one of:
 - #:PROPERTY---FUNCTION is a getter, SETTER-FUNCTION is a setter.
   - In case SETTER-FUNCTION is not provided, generate dummy setter.
   - In case FUNCTION is an atom, create getter returning the atom.
-- #:METHOD---method acting on the instance of CLASS."
+- #:METHOD---method acting on the instance of CLASS.
+
+WARNING: Ensure that FUNCTION and SETTER-FUNCTION (when present)
+return a JSCValue!"
   (hash-set!
    *apis* property
    (lambda (context)
