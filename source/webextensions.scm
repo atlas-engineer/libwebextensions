@@ -866,8 +866,8 @@ Otherwise replaces NAME value to VALUE."
 - Password.
 - Auth params.
 - Host.
-- Port.
-- Path.
+- Port (integer).
+- Path (normalized to '/' if empty).
 - Query params (alist).
 - Fragment."
   (and-let* ((g-uri (pointer/false
@@ -887,7 +887,7 @@ Otherwise replaces NAME value to VALUE."
           (get "g_uri_get_password")
           (get "g_uri_get_auth_params")
           (get "g_uri_get_host")
-          ((foreign-fn "g_uri_get_port" '(*) unsigned-int) g-uri)
+          ((foreign-fn "g_uri_get_port" '(*) int) g-uri)
           (get "g_uri_get_path")
           (and-let* ((query-hash
                       (pointer/false
