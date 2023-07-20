@@ -366,7 +366,7 @@ context it belongs to."
        obj)))
 
 (define (jsc-properties object)
-  "Get a list of string for all the properties in OBJECT."
+  "Get a list of strings for all the properties in OBJECT."
   (let* ((ffi-props ((foreign-fn "jsc_value_object_enumerate_properties" '(*) '*) object))
          (props (let destructure ((idx 0))
                   (if (null-pointer? (last (parse-c-struct ffi-props (make-list (+ 1 idx) '*))))
