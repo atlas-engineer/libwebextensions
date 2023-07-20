@@ -375,8 +375,15 @@ context it belongs to."
     ((foreign-fn "g_strfreev" '(*) void) ffi-props)
     props))
 (define (jsc-property object property-name)
+  "Get a PROPERTY-NAME-named property from OBJECT.
+
+PROPERTY-NAME can be a string, a number (for arrays), or a pointer to
+string."
   ((foreign-fn "jsc_value_object_get_property" '(* *) '*)
    object (ensure-index property-name)))
+(define (jsc-property* object property-name)
+  "Get the Scheme value for PROPERTY-NAME-named property of OBJECT."
+  (jsc->scm (jsc-property object property-name)))
 (define (jsc-property? object property-name)
   ((foreign-fn "jsc_value_object_has_property" '(* *) '*)
    object (ensure-index property-name)))
