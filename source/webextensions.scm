@@ -375,20 +375,32 @@ context it belongs to."
                       (destructure (+ 1 idx))))))
     ((foreign-fn "g_strfreev" '(*) void) ffi-props)
     props))
-(define (jsc-property object property-name)
-  "Get a PROPERTY-NAME-named property from OBJECT.
+(define (%jsc-property object property-name)
+  "Get a PROPERTY-NAME-named JSCValue of property from OBJECT.
 
-PROPERTY-NAME can be a string, a number (for arrays), or a pointer to
-string."
+- PROPERTY-NAME is
+  - String.
+  - Integer.
+  - Or pointer.
+
+BEWARE: if you need a Scheme return value, use `jsc-property'
+instead."
   ((foreign-fn "jsc_value_object_get_property" '(* *) '*)
    object (ensure-index property-name)))
-(define (jsc-property* object property-name)
+(define (jsc-property object property-name)
   "Get the Scheme value for PROPERTY-NAME-named property of OBJECT."
-  (jsc->scm (jsc-property object property-name)))
+  (jsc->scm (%jsc-property object property-name)))
 (define (jsc-property? object property-name)
   ((foreign-fn "jsc_value_object_has_property" '(* *) '*)
    object (ensure-index property-name)))
 (define (jsc-property-set! object property-name value)
+  "Set the PROPERTY-NAME-d property of OBJECT to VALUE.
+- OBJECT is JSCValue.
+- PROPERTY-NAME is
+  - String.
+  - Integer.
+  - Or pointer.
+- VALUE can be a Scheme value or JSCValue."
   ((foreign-fn "jsc_value_object_set_property" '(* * *) void)
    object (ensure-index property-name)
    (scm->jsc value)))
@@ -1044,12 +1056,13 @@ Should? always return a pointer to ScriptWorld."
   (g-print "Got a message '%s' with content \n'%s'\n"
            (message-name message)
            (or (g-variant-string (message-params message)) ""))
-  (and-let* ((string (g-variant-string (message-params message)))
-             (jsc (json->jsc string)))
+  (let* ((param-string (or (g-variant-string (message-params message)) ""))
+         (param-jsc (json->jsc param-string)))
     (cond
-     ((equal? string "addExtension")
-      (hash-set! *web-extensions* (jsc-property jsc "name")
-                 (make-web-extension jsc)))))
+     ((string=? (message-name message) "addExtension")
+      (g-print "Building extension with '%s' name\n" (jsc-property param-jsc "name"))
+      (hash-set! *web-extensions* (jsc-property param-jsc "name")
+                 (make-web-extension param-jsc)))))
   (message-reply message)
   1)
 
