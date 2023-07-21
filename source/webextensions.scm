@@ -915,6 +915,49 @@ Otherwise replaces NAME value to VALUE."
             (hash-map->list (lambda (key value) (cons key value)) params))
           (get "g_uri_get_fragment"))))
 
+(define (match-pattern pattern)
+  "Return a procedure matching a string URL against PATTERN."
+  (cond
+   ((equal? pattern "<all_urls>")
+    (lambda (url)
+      (member (car (parse-uri url)) '("http" "https" "ws" "wss" "ftp" "data" "file"))))
+   ((equal? pattern "*://*/*")
+    (lambda (url)
+      (member (car (parse-uri url)) '("http" "https" "ws" "wss"))))
+   (else
+    (let* ((split (lambda (string char)
+                    (string-split string (lambda (c) (eq? char c)))))
+           (scheme+everything-else (split pattern #\:))
+           (scheme (car scheme+everything-else))
+           (everything-else (substring (cadr scheme+everything-else) 2))
+           (split-on-slashes (split everything-else #\/))
+           (host (car split-on-slashes))
+           (path (substring everything-else (string-length host)))
+           (path+query (split path #\?))
+           (query (if (> (length path+query) 1)
+                      (cadr path+query)
+                      ""))
+           (path (car path+query))
+           (scheme-matcher (if (string=? "*" scheme)
+                               (lambda (uri) #t)
+                               (lambda (uri)
+                                 (equal? scheme (car (parse-uri uri))))))
+           (host-matcher (cond
+                          ((string=? host "*")
+                           (lambda (uri) #t))
+                          ((string=? scheme "file")
+                           (lambda (uri) #t))
+                          ((string-prefix? "*." host)
+                           (lambda (uri)
+                             (string-suffix? (substring host 2) (list-ref uri 4))))
+                          (else
+                           (lambda (uri)
+                             (string-suffix? (substring host 2) (list-ref uri 4))))))
+           ;; TODO
+           (path-matcher #f)
+           (query-matcher #f))
+      (list scheme host path)))))
+
 ;; ScriptWorld
 
 (define (script-world-default)
