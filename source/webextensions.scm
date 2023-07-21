@@ -98,7 +98,8 @@ arglist."
   "Create and return a new maybe string (ms) GVariant."
   ((foreign-fn "g_variant_new" '(* *) '*)
    (string->pointer "ms")
-   (if string-or-nothing
+   (if (or (string? string-or-nothing)
+           (pointer? string-or-nothing))
        (string->pointer* string-or-nothing)
        %null-pointer)))
 
