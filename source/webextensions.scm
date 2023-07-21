@@ -16,29 +16,48 @@
 
 ;;; General utilities (Glib and FFI)
 
+(define (false? object)
+  (not object))
+
+(define (typecheck name value . predicates)
+  "Check that VALUE conforms to at least one of PREDICATES.
+Return the VALUE if successful, error otherwise.
+NAME is a literal symbol for the function that type check happens in."
+  (let check ((preds predicates))
+    (cond
+     ((null-list? preds)
+      (error (format #f "~&In ~a: the value ~s is not one of ~{~a~^, ~}."
+                     name value (map procedure-name predicates))))
+     ((apply (car preds) value '())
+      value)
+     (else
+      (check (cdr preds))))))
+
 (define (pointer/false pointer)
   "Return #f is the POINTER is NULL or #f.
 Otherwise return the POINTER itself.
 
 Useful to dispatch NULL/non-NULL pointers on the Scheme-side."
+  (typecheck 'pointer/false pointer pointer? false?)
   (if (or (eq? %null-pointer pointer)
-          (eq? #f pointer))
+          (false? pointer))
       #f
       pointer))
 
 (define (string->pointer* string)
   "Smarter string->pointer.
 Converts string to pointers and leaves pointers intact."
+  (typecheck 'string->pointer* string string? pointer?)
   (cond
    ((string? string)
     (string->pointer string))
    ((pointer? string)
-    string)
-   (else (error "Cannot ensure string pointer for value" string))))
+    string)))
 
 (define (pointer->string* pointer)
   "Smarter pointer->string.
 Turns null pointers into #f, instead of erroring."
+  (typecheck 'pointer->string* pointer pointer?)
   (and-let* ((pointer (pointer/false pointer)))
     (pointer->string pointer)))
 
@@ -55,6 +74,7 @@ Converts procedures to pointers and leaves pointers intact.
 Also defaults ARG-TYPES and RETURN-TYPE to pointers. In case of
 ARG-TYPES tries to guess the PROCEDURE arity and generate a reasonable
 arglist."
+  (typecheck 'procedure->pointer* procedure procedure? pointer?)
   (cond
    ((and (procedure? procedure)
          (not arg-types))
@@ -62,8 +82,7 @@ arglist."
    ((procedure? procedure)
     (procedure->pointer return-type procedure arg-types))
    ((pointer? procedure)
-    procedure)
-   (else (error "Cannot ensure procedure pointer for value" procedure))))
+    procedure)))
 
 ;; FIXME: Some of the `foreign-fn' -> `foreign-library-function' ->
 ;; `pointer->procedure' fails with wrong ARGS value. Check all the
@@ -96,12 +115,10 @@ arglist."
 
 (define (make-g-variant string-or-nothing)
   "Create and return a new maybe string (ms) GVariant."
+  (typecheck 'make-g-variant string-or-nothing string? pointer?)
   ((foreign-fn "g_variant_new" '(* *) '*)
    (string->pointer "ms")
-   (if (or (string? string-or-nothing)
-           (pointer? string-or-nothing))
-       (string->pointer* string-or-nothing)
-       %null-pointer)))
+   (string->pointer* string-or-nothing)))
 
 (define (g-variant-string g-variant)
   "Fetch the G-VARIANT string, if there's one.
@@ -190,8 +207,7 @@ VALUE can be a Scheme value or a pointer to JSCValue."
   (pointer/false ((foreign-fn "jsc_context_get_expression" '(*) '*) context)))
 
 (define* (jsc-context-value name #:optional (context (jsc-context-get/make)))
-  "Returns the JSCValue (as a pointer to JSCValue) bound to NAME in
-CONTEXT."
+  "Returns the JSCValue bound to NAME in CONTEXT."
   ((foreign-fn "jsc_context_get_value" '(* *) '*)
    context (string->pointer* name)))
 
@@ -361,6 +377,7 @@ context it belongs to."
    ((foreign-fn "jsc_value_to_string" (list '*) '*) jsc)))
 
 (define (ensure-index obj)
+  (typecheck 'ensure-index obj pointer? string? integer?)
   (string->pointer*
    (if (integer? obj)
        (number->string obj)
@@ -412,6 +429,7 @@ instead."
   "Transform LIST-OR-VECTOR to a JSC array.
 LIST-OR-VECTOR should be a list or vector, and its elements should be
 JSC value pointers."
+  (typecheck 'make-jsc-array list-or-vector list? vector?)
   (let ((contents (if (vector? list-or-vector)
                       (vector->list list-or-vector)
                       list-or-vector))
@@ -439,6 +457,8 @@ JSC value pointers."
 (define* (make-jsc-object class contents #:optional (context (jsc-context-get/make)))
   "Create a JSCValue object with CLASS and CONTENTS (alist) inside it.
 If CLASS is #f, no class is used."
+  (typecheck 'make-jsc-object class false? pointer?)
+  (typecheck 'make-jsc-object contents null-list?)
   (let* ((class (or class %null-pointer))
          (obj ((foreign-fn "jsc_value_new_object" '(* * *) '*)
                context %null-pointer class)))
@@ -447,13 +467,14 @@ If CLASS is #f, no class is used."
           ((>= idx (length contents)))
         (let ((value (cdr (list-ref contents idx))))
           (jsc-property-set! obj (string->pointer* (car (list-ref contents idx)))
-                             (scm->jsc value)))))
+                             value))))
     obj))
 (define (jsc-object? obj)
   (positive? ((foreign-fn "jsc_value_is_object" '(*) unsigned-int) obj)))
 (define (jsc-instance-of? obj parent-or-name)
   "Check whether OBJ is an instance of PARENT-OR-NAME.
 PARENT-OR-NAME is either a JSCClass object or a string name thereof."
+  (typecheck 'jsc-instance-of? parent-or-name string? pointer?)
   (positive? ((foreign-fn "jsc_value_object_is_instance_of" '(* *) unsigned-int)
               obj (string->pointer*
                    (if (pointer? parent-or-name)
@@ -525,6 +546,10 @@ Converts procedures to anonymous functions.
 
 If the OBJECT is a pointer, this pointer is implied to be a JSCValue
 already and is returned."
+  (typecheck
+   'scm->jsc
+   object
+   pointer? symbol? keyword? number? string? vector? list? procedure?)
   (cond
    ((pointer? object) object)
    ((eq? #:null object) (make-jsc-null context))
@@ -540,8 +565,7 @@ already and is returned."
          (not (list? (cdr (car object)))))
     (make-jsc-object %null-pointer object context))
    ((list? object) (make-jsc-array object context))
-   ((procedure? object) (make-jsc-function #f object context))
-   (else (error "scm->jsc: unknown value passed" object))))
+   ((procedure? object) (make-jsc-function #f object context))))
 
 (define* (jsc->scm object)
   "Convert JSCValue OBJECT to a Scheme value.
@@ -640,6 +664,8 @@ where TYPE is one of:
 
 WARNING: Ensure that FUNCTION and SETTER-FUNCTION (when present)
 return a JSCValue!"
+  (typecheck 'define-api property string?)
+  (typecheck 'define-api class string?)
   (hash-set!
    *apis* property
    (lambda (context)
@@ -830,6 +856,7 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
   "Set a header with NAME to VALUE.
 Appends the header if APPEND? or if NAME is not set yet.
 Otherwise replaces NAME value to VALUE."
+  (typecheck 'request-header-set! request pointer?)
   (let* ((headers (request-headers request))
          (name-ptr (string->pointer* name))
          (value-ptr (string->pointer* value))
