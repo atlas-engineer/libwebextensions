@@ -1025,10 +1025,14 @@ Should? always return a pointer to ScriptWorld."
   (name we-name)
   (jsc we-jsc)
   (world we-world)
-  (browser we-browser we-browser-set!))
+  (browser we-browser we-browser-set!)
+  (permissions we-permissions we-permissions-set!))
 
-(define (make-web-extension name jsc)
-  (%make-web-extension name jsc (make-script-world name)))
+(define (make-web-extension jsc)
+  (let* ((name (jsc-property jsc "name"))
+         (extension (%make-web-extension name jsc (make-script-world name))))
+    (when (jsc-property? jsc "permissions")
+      (we-permissions-set! extension (jsc->list (jsc-property jsc "permissions"))))))
 
 (define (we-context web-extension)
   (frame-jsc-context (page-main-frame *page*) (we-world web-extension)))
@@ -1044,7 +1048,7 @@ Should? always return a pointer to ScriptWorld."
     (cond
      ((equal? string "addExtension")
       (hash-set! *web-extensions* (jsc-property jsc "name")
-                 (make-web-extension (jsc-property jsc "name") jsc)))))
+                 (make-web-extension jsc)))))
   (message-reply message)
   1)
 
