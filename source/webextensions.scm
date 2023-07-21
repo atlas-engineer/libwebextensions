@@ -1043,9 +1043,41 @@ Should? always return a pointer to ScriptWorld."
 
 (define (make-web-extension jsc)
   (let* ((name (jsc-property jsc "name"))
-         (extension (%make-web-extension name jsc (make-script-world name))))
+         (world (make-script-world name))
+         (extension (%make-web-extension name jsc world)))
     (when (jsc-property? jsc "permissions")
-      (we-permissions-set! extension (jsc->list (jsc-property jsc "permissions"))))))
+      (we-permissions-set! extension (jsc-property jsc "permissions")))
+    (g-signal-connect
+     world "window-object-cleared"
+     (procedure->pointer*
+      (lambda (world page frame)
+        (let ((context (frame-jsc-context frame world)))
+          (inject-browser context)
+          (jsc-context-value-set!
+           "try_injecting_js_into_a_custom_world"
+           (make-jsc-function
+            #f (lambda ()
+                 (g-print "Callback in!")
+                 (make-jsc-null))
+            context)
+           context)
+          (let ((number 8))
+            ((define-api
+               "test" "Test"
+               (list "prop" #:property
+                     (lambda (instance)
+                       (g-print "Calling getter for prop\n")
+                       (make-jsc-number number))
+                     (lambda (instance value)
+                       (g-print "Calling setter for prop with %s\n" (format #f "~s" (jsc->scm value)))
+                       (set! number (jsc->scm value))
+                       value))
+               (list "method" #:method
+                     (lambda (instance arg)
+                       (g-print "Calling method with %s\n" (format #f "~s" (jsc->scm arg)))
+                       (scm->jsc (+ (jsc->scm arg) number)))))
+             context))))
+      '(* * *) void))))
 
 (define (we-context web-extension)
   (frame-jsc-context (page-main-frame *page*) (we-world web-extension)))
@@ -1096,35 +1128,4 @@ Should? always return a pointer to ScriptWorld."
   (g-signal-connect
    extension-ptr "page-created"
    (procedure->pointer* page-created-callback '(* *) void))
-  (g-signal-connect
-   (script-world-default) "window-object-cleared"
-   (procedure->pointer*
-    (lambda (world page frame)
-      (let ((context (frame-jsc-context (page-main-frame page) (script-world-default))))
-        (jsc-context-value-set!
-         "try_injecting_js_into_default_world"
-         (make-jsc-function
-          #f (lambda ()
-               (g-print "Callback in!")
-               (make-jsc-null))
-          context)
-         context)
-        (inject-browser context)
-        (let ((number 8))
-          ((define-api
-             "test" "Test"
-             (list "prop" #:property
-                   (lambda (instance)
-                     (g-print "Calling getter for prop\n")
-                     (make-jsc-number number))
-                   (lambda (instance value)
-                     (g-print "Calling setter for prop with %s\n" (format #f "~s" (jsc->scm value)))
-                     (set! number (jsc->scm value))
-                     value))
-             (list "method" #:method
-                   (lambda (instance arg)
-                     (g-print "Calling method with %s\n" (format #f "~s" (jsc->scm arg)))
-                     (scm->jsc (+ (jsc->scm arg) number)))))
-           context))))
-    '(* * *) void))
   (display "WebExtensions Library handlers installed.\n"))
