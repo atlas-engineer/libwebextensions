@@ -1170,7 +1170,7 @@ Should? always return a pointer to ScriptWorld."
            (format #f "~s" (request-headers request)))
   ;; Watch out: this one if NULL more often than not!
   (when (pointer/false redirected-response)
-    (g-print "Got a redirection response for '%s' and status %i"
+    (g-print "Got a redirection response for '%s' and status %i\n"
              (response-uri redirected-response) (response-status-code redirected-response)))
   ;; 1 = Stop processing, terminate the view.
   ;; 0 = Continue processing.
