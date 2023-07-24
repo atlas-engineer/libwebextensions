@@ -840,6 +840,18 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
 
 (define *headers* (make-hash-table))
 
+(define (char-visible? c)
+  "Whether the char is printable/visible (i.e. not a control char.)"
+  (let ((i (char->integer c)))
+    (not
+     ;; All the non-printable ASCII chars.
+     (or (<= 0 i 8)
+         ;; Tab.
+         ;; Line feed.
+         (= i 11)
+         (= i 12)
+         ;; Carriage return.
+         (<= 14 i 31)))))
 (define (parse-soup-headers headers)
   (set! *headers* (make-hash-table))
   (when (pointer/false headers)
@@ -854,7 +866,19 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
                      ((foreign-fn "soup_message_headers_get_list"
                                   '(* *) '*)
                       headers name))))
-          (hash-set! *headers* actual-name actual-value)))
+          (when (and (every (lambda (c)
+                              ;; Even though HTTP standard allows much
+                              ;; more characters, everyone seems to use
+                              ;; alphanumeric kebab-case ones. So ignore
+                              ;; all the rest.
+                              ;;
+                              ;; FIXME: Maybe parse it by the
+                              ;; standard? Web is too chaotic to not
+                              ;; prove the Law of Implicit APIs.
+                              (or (char-alphabetic? c) (char-numeric? c) (char= c "-")))
+                            actual-name)
+                     (every char-visible? actual-value))
+            (hash-set! *headers* actual-name actual-value))))
       '(* *) void)))
   (hash-map->list (lambda (key value) (cons key value)) *headers*))
 
