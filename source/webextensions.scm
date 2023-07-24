@@ -861,24 +861,26 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
       (lambda (name value)
         (g-print "Started processing header %s\n" (pointer->string* name))
         (and-let* ((actual-name (pointer->string* name))
+                   (name-proper?
+                    (string-every
+                     (lambda (c)
+                       ;; Even though HTTP standard allows much
+                       ;; more characters, everyone seems to use
+                       ;; alphanumeric kebab-case ones. So ignore
+                       ;; all the rest.
+                       ;;
+                       ;; FIXME: Maybe parse it by the
+                       ;; standard? Web is too chaotic to not
+                       ;; prove the Law of Implicit APIs.
+                       (or (char-alphabetic? c) (char-numeric? c) (char=? c #\-)))
+                     actual-name))
                    (actual-value
                     (pointer->string*
                      ((foreign-fn "soup_message_headers_get_list"
                                   '(* *) '*)
-                      headers name))))
-          (when (and (every (lambda (c)
-                              ;; Even though HTTP standard allows much
-                              ;; more characters, everyone seems to use
-                              ;; alphanumeric kebab-case ones. So ignore
-                              ;; all the rest.
-                              ;;
-                              ;; FIXME: Maybe parse it by the
-                              ;; standard? Web is too chaotic to not
-                              ;; prove the Law of Implicit APIs.
-                              (or (char-alphabetic? c) (char-numeric? c) (char= c "-")))
-                            actual-name)
-                     (every char-visible? actual-value))
-            (hash-set! *headers* actual-name actual-value))))
+                      headers name)))
+                   (value-proper? (string-every char-visible? actual-value)))
+          (hash-set! *headers* actual-name actual-value)))
       '(* *) void)))
   (hash-map->list (lambda (key value) (cons key value)) *headers*))
 
