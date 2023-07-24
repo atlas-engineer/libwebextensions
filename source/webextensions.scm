@@ -465,10 +465,14 @@ JSC value pointers."
   "Create a JSCValue object with CLASS and CONTENTS (alist) inside it.
 If CLASS is #f, no class is used."
   (typecheck 'make-jsc-object class false? pointer?)
-  (typecheck 'make-jsc-object contents null-list?)
+  (typecheck 'make-jsc-object contents null-list? list? hash-table?)
   (let* ((class (or class %null-pointer))
          (obj ((foreign-fn "jsc_value_new_object" '(* * *) '*)
-               context %null-pointer class)))
+               context %null-pointer class))
+         (contents (if (hash-table? contents)
+                       (hash-map->list (lambda (key value) (cons key value))
+                                       contents)
+                       contents)))
     (when (positive? (length contents))
       (do ((idx 0 (1+ idx)))
           ((>= idx (length contents)))
