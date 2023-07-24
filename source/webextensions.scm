@@ -33,12 +33,17 @@ NAME is a literal symbol for the function that type check happens in."
      (else
       (check (cdr preds))))))
 
+(define (pointer/false? pointer)
+  "Type predicate for `pointer/false' inputs."
+  (or (false? pointer)
+      (pointer? pointer)))
+
 (define (pointer/false pointer)
   "Return #f is the POINTER is NULL or #f.
 Otherwise return the POINTER itself.
 
 Useful to dispatch NULL/non-NULL pointers on the Scheme-side."
-  (typecheck 'pointer/false pointer pointer? false?)
+  (typecheck 'pointer/false pointer pointer/false?)
   (if (or (eq? %null-pointer pointer)
           (false? pointer))
       #f
@@ -47,17 +52,19 @@ Useful to dispatch NULL/non-NULL pointers on the Scheme-side."
 (define (string->pointer* string)
   "Smarter string->pointer.
 Converts string to pointers and leaves pointers intact."
-  (typecheck 'string->pointer* string string? pointer?)
+  (typecheck 'string->pointer* string string? pointer/false?)
   (cond
    ((string? string)
     (string->pointer string))
    ((pointer? string)
-    string)))
+    string)
+   ((false? string)
+    %null-pointer)))
 
 (define (pointer->string* pointer)
   "Smarter pointer->string.
 Turns null pointers into #f, instead of erroring."
-  (typecheck 'pointer->string* pointer pointer?)
+  (typecheck 'pointer->string* pointer pointer/false?)
   (and-let* ((pointer (pointer/false pointer)))
     (pointer->string pointer)))
 
@@ -115,7 +122,7 @@ arglist."
 
 (define (make-g-variant string-or-nothing)
   "Create and return a new maybe string (ms) GVariant."
-  (typecheck 'make-g-variant string-or-nothing string? pointer?)
+  (typecheck 'make-g-variant string-or-nothing string? pointer/false?)
   ((foreign-fn "g_variant_new" '(* *) '*)
    (string->pointer "ms")
    (string->pointer* string-or-nothing)))
