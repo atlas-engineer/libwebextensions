@@ -847,7 +847,7 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
      headers
      (procedure->pointer*
       (lambda (name value)
-        (g-print "Started processing header%s\n" (pointer->string* name))
+        (g-print "Started processing header %s\n" (pointer->string* name))
         (and-let* ((actual-name (pointer->string* name))
                    (actual-value
                     (pointer->string*
@@ -1089,6 +1089,7 @@ Should? always return a pointer to ScriptWorld."
      world "window-object-cleared"
      (procedure->pointer*
       (lambda (world page frame)
+        (g-print "Injecting the extension API into '%s' world\n" (script-world-name world))
         (let ((context (frame-jsc-context frame world)))
           (inject-browser context)
           (jsc-context-value-set!
