@@ -852,6 +852,7 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
          (= i 12)
          ;; Carriage return.
          (<= 14 i 31)))))
+
 (define (parse-soup-headers headers)
   (set! *headers* (make-hash-table))
   (when (pointer/false headers)
@@ -880,13 +881,19 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
                                   '(* *) '*)
                       headers name)))
                    (value-proper? (string-every char-visible? actual-value)))
-          (hash-set! *headers* actual-name actual-value)))
+          (let ((hash-val (hash-ref *headers* actual-name '())))
+            (hash-set! *headers* actual-name (cons actual-value hash-val)))))
       '(* *) void)))
   (hash-map->list (lambda (key value) (cons key value)) *headers*))
 
+(define (%request-headers request)
+  "Return a pointer to REQUEST headers (as SoupMessageHeaders structure)."
+  ((foreign-fn "webkit_uri_request_get_http_headers" '(*) '*) request))
 (define (request-headers request)
-  (parse-soup-headers
-   ((foreign-fn "webkit_uri_request_get_http_headers" '(*) '*) request)))
+  "Return an alist of headers from REQUEST.
+Alist heads are string names of headers.
+Alist tails are lists of string for values of headers."
+  (parse-soup-headers (%request-headers request)))
 
 ;; TODO: Test whether it works.
 (define* (request-header-set! request name #:optional (value "") append?)
@@ -894,7 +901,7 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
 Appends the header if APPEND? or if NAME is not set yet.
 Otherwise replaces NAME value to VALUE."
   (typecheck 'request-header-set! request pointer?)
-  (let* ((headers (request-headers request))
+  (let* ((headers (%request-headers request))
          (name-ptr (string->pointer* name))
          (value-ptr (string->pointer* value))
          (prev-value (pointer->string*
@@ -916,6 +923,9 @@ Otherwise replaces NAME value to VALUE."
   ((foreign-fn "webkit_uri_response_get_content_length" '(*) uint64) response))
 
 (define (response-headers response)
+  "Return an alist of headers from RESPONSE.
+Alist heads are string names of headers.
+Alist tails are lists of string for values of headers."
   (parse-soup-headers
    ((foreign-fn "webkit_uri_response_get_http_headers" '(*) '*) response)))
 
