@@ -697,6 +697,8 @@ return a JSCValue!"
                             (function (list-ref meth/prop 2))
                             (setter (when (= 4 (length meth/prop))
                                       (list-ref meth/prop 3))))
+                       (typecheck 'define-api/add-methods/properties name string? pointer?)
+                       (typecheck 'define-api/add-methods/properties function procedure? pointer?)
                        (cond
                         ((eq? #:method type)
                          (jsc-class-add-method! class-obj name function))
