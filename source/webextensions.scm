@@ -1167,46 +1167,60 @@ Should? always return a pointer to ScriptWorld."
 
 ;;; Entry point and signal processors
 
+(define (call-with-backtrace thunk)
+  "Print backtrace on error."
+  (with-exception-handler
+      (lambda (exn)
+        (backtrace)
+        (raise-exception exn))
+    thunk))
+
 (define (message-received-callback page message)
-  (g-print "Got a message '%s' with content \n'%s'\n"
-           (message-name message)
-           (or (g-variant-string (message-params message)) ""))
-  (let* ((param-string (or (g-variant-string (message-params message)) ""))
-         (param-jsc (json->jsc param-string)))
-    (cond
-     ((and (string=? (message-name message) "addExtension")
-           (not (hash-ref *web-extensions* (jsc-property param-jsc "name"))))
-      (g-print "Building extension with '%s' name\n" (jsc-property param-jsc "name"))
-      (hash-set! *web-extensions* (jsc-property param-jsc "name")
-                 (make-web-extension param-jsc)))))
-  (message-reply message)
-  1)
+  (call-with-backtrace
+   (lambda ()
+     (g-print "Got a message '%s' with content \n'%s'\n"
+              (message-name message)
+              (or (g-variant-string (message-params message)) ""))
+     (let* ((param-string (or (g-variant-string (message-params message)) ""))
+            (param-jsc (json->jsc param-string)))
+       (cond
+        ((and (string=? (message-name message) "addExtension")
+              (not (hash-ref *web-extensions* (jsc-property param-jsc "name"))))
+         (g-print "Building extension with '%s' name\n" (jsc-property param-jsc "name"))
+         (hash-set! *web-extensions* (jsc-property param-jsc "name")
+                    (make-web-extension param-jsc)))))
+     (message-reply message)
+     1)))
 
 (define (send-request-callback page request redirected-response)
-  (g-print "Sending a request to '%s'\n" (request-uri request))
-  (g-print "Headers are: %s\n"
-           (format #f "~s" (request-headers request)))
-  ;; Watch out: this one if NULL more often than not!
-  (when (pointer/false redirected-response)
-    (g-print "Got a redirection response for '%s' and status %i\n"
-             (response-uri redirected-response) (response-status-code redirected-response)))
-  ;; 1 = Stop processing, terminate the view.
-  ;; 0 = Continue processing.
-  0)
+  (call-with-backtrace
+   (lambda ()
+     (g-print "Sending a request to '%s'\n" (request-uri request))
+     ;; (g-print "Headers are: %s\n"
+     ;;          (format #f "~s" (request-headers request)))
+     ;; Watch out: this one if NULL more often than not!
+     (when (pointer/false redirected-response)
+       (g-print "Got a redirection response for '%s' and status %i\n"
+                (response-uri redirected-response) (response-status-code redirected-response)))
+     ;; 1 = Stop processing, terminate the view.
+     ;; 0 = Continue processing.
+     0)))
 
 (define (page-created-callback extension page)
-  (set! *page* page)
-  (g-print "Page %i created!\n" (page-id page))
-  (g-signal-connect
-   page "user-message-received"
-   (procedure->pointer*
-    message-received-callback '(* *) unsigned-int))
-  (g-print "User message handler installed!\n")
-  (g-signal-connect
-   page "send-request"
-   (procedure->pointer*
-    send-request-callback '(* * *) unsigned-int))
-  (g-print "Request handler installed!\n"))
+  (call-with-backtrace
+   (lambda ()
+     (set! *page* page)
+     (g-print "Page %i created!\n" (page-id page))
+     (g-signal-connect
+      page "user-message-received"
+      (procedure->pointer*
+       message-received-callback '(* *) unsigned-int))
+     (g-print "User message handler installed!\n")
+     (g-signal-connect
+      page "send-request"
+      (procedure->pointer*
+       send-request-callback '(* * *) unsigned-int))
+     (g-print "Request handler installed!\n"))))
 
 (define (entry-webextensions extension-ptr)
   (g-signal-connect
