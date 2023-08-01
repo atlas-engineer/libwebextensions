@@ -159,14 +159,39 @@ G-VARIANT is implied to be a maybe string GVariant."
    (string->pointer* signal)
    handler (or data %null-pointer) %null-pointer 0))
 
-(define (make-g-async-callback procedure)
-  "Turn PROCEDURE into a pointer suitable for GAsyncCallback.
-PROCEDURE should have
-- 2 requred arguments.
+(define (make-g-async-callback callback finish-fn)
+  "Wrap CALLBACK into a pointer suitable for GAsyncCallback.
+
+CALLBACK should have:
+- 2 required arguments.
 - 2 required and 1 optional argument.
-- Or 3 requred arguments."
-  (if (pointer/false procedure)
-      (procedure->pointer* procedure (procedure-ffi-arglist procedure) void)
+- Or 3 requred arguments.
+
+CALLBACK is called with:
+- an object initializing the async operation.
+- a GAsyncResult already processed.
+- and, optionally, user data pointer.
+
+CALLBACK doesn't have to be a procedure. If it's not, the async
+callback does nothing (and is NULL).
+
+FINISH-FN should be one of:
+- String (name of the _finish foreign function).
+- Procedure on object and GAsyncResult."
+  (typecheck 'make-g-async-callback finish-fn string? procedure?)
+  (if (procedure? callback)
+      (procedure->pointer* (lambda (object result data)
+                             (apply callback object
+                                    (cond
+                                     ((string? finish-fn)
+                                      ((foreign-fn finish-fn '(* * *) '*)
+                                       object result %null-pointer))
+                                     ((procedure? finish-fn)
+                                      (finish-fn object result)))
+                                    (if (equal? 2 (car (procedure-minimum-arity procedure)))
+                                        '()
+                                        (list data))))
+                           '(* * *) void)
       %null-pointer))
 
 (define (procedure-maximum-arity procedure)
@@ -821,7 +846,9 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
 (define* (page-send-message message
                             #:optional (callback %null-pointer) (page *page*))
   ((foreign-fn "webkit_web_page_send_message_to_view" '(* * * * *) void)
-   page message %null-pointer (make-g-async-callback callback) %null-pointer))
+   page message %null-pointer
+   (make-g-async-callback callback "webkit_web_page_send_message_to_view_finish")
+   %null-pointer))
 
 (define (page-main-frame page)
   "Get the main WebKitFrame associated with PAGE."
@@ -1105,10 +1132,11 @@ Should? always return a pointer to ScriptWorld."
    extension page-id))
 
 (define* (extension-send-message
-          message #:optional (callback %null-pointer) (extension *extension*))
+          message #:optional (callback #f) (extension *extension*))
   ((foreign-fn "webkit_web_extension_send_message_to_context" '(* * * * *) void)
-   extension message %null-pointer (make-g-async-callback callback) %null-pointer))
-
+   extension message %null-pointer
+   (make-g-async-callback callback "webkit_web_extension_send_message_to_context_finish")
+   %null-pointer))
 
 ;;; WebExtension representation
 
