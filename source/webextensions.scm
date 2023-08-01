@@ -10,8 +10,9 @@
   #:use-module (srfi srfi-9) ;; Record types.
   #:export (entry-webextensions))
 
-;;; This file is more inspectable if you enable hideshow-minor-mode on
-;;; geiser-mode-hook (or whatever Scheme/Lisp mode you use):
+;;; This file is huge, and thus more inspectable if you enable Hideshow
+;;; (or other folding mode) on geiser-mode-hook (or whatever
+;;; Scheme/Lisp mode you use):
 ;;;
 ;;; (add-hook 'geiser-mode-hook 'hs-minor-mode)
 
