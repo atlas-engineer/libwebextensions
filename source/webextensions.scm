@@ -591,11 +591,12 @@ already and is returned."
   (typecheck
    'scm->jsc
    object
-   pointer? symbol? keyword? number? string? vector? list? procedure?)
+   pointer? symbol? boolean? keyword? number? string? vector? list? procedure?)
   (cond
    ((pointer? object) object)
    ((eq? #:null object) (make-jsc-null context))
    ((eq? #:undefined object) (make-jsc-undefined context))
+   ((boolean? object) (make-jsc-boolean object context))
    ((symbol? object) (scm->jsc (symbol->string object)))
    ((keyword? object) (scm->jsc (keyword->symbol object)))
    ((boolean? object) (make-jsc-boolean object context))
