@@ -135,7 +135,7 @@ arglist."
 
 (define (g-variant-string g-variant)
   "Fetch the G-VARIANT string, if there's one.
-G-VARIANT is implied to be a maybe string GVariant."
+G-VARIANT is implied to be a maybe/string GVariant."
   (and-let* ((g-variant (pointer/false g-variant))
              (class (integer->char
                      ((foreign-fn "g_variant_classify" '(*) unsigned-int) g-variant)))
