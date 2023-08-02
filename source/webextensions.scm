@@ -569,7 +569,7 @@ Applies FUNCTION-NAME to INITIAL-ARGS and ARGS."
                  '*)
      (append initial-args
              (fold (lambda (a l)
-                     (append l (list jsc-type a)))
+                     (append l (list jsc-type (scm->jsc a))))
                    '()
                    args)
              ;; G_TYPE_NONE (hopefully portable)
