@@ -678,7 +678,7 @@ DEFAULT."
                            ((> attempts 10)
                             (jsc-function-call success default))
                            (else
-                            (sleep 0.1)
+                            (sleep 1)
                             (check-result (+ 1 attempts)))))))
       context))))
 
