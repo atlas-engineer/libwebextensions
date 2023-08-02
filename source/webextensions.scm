@@ -188,7 +188,7 @@ FINISH-FN should be one of:
                                        object result %null-pointer))
                                      ((procedure? finish-fn)
                                       (finish-fn object result)))
-                                    (if (equal? 2 (car (procedure-minimum-arity procedure)))
+                                    (if (equal? 3 (procedure-maximum-arity procedure))
                                         '()
                                         (list data))))
                            '(* * *) void)
