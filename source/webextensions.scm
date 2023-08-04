@@ -477,9 +477,12 @@ JSC value pointers."
 (define (jsc->list object)
   "Convert OBJECT JSCValue array into a Scheme list."
   (let rec ((idx 0))
+    (g-print "Running jsc->list\n")
     (if (jsc-property? object idx)
-        (cons (jsc->scm (jsc-property object (number->string idx)))
-              (rec (1+ idx)))
+        (begin
+          (g-print "Getting property %s\n" (ensure-index idx))
+          (cons (jsc->scm (jsc-property object (number->string idx)))
+                (rec (1+ idx))))
         '())))
 
 (define* (make-jsc-object class contents #:optional (context (jsc-context-get/make)))
@@ -604,6 +607,7 @@ already and is returned."
 (define* (jsc->scm object)
   "Convert JSCValue OBJECT to a Scheme value.
 Does not support objects and functions yet."
+  (g-print "Try converting object %s to Scheme val\n" (format #f "~s" object))
   (cond
    ;; If it's not a pointer, then it's a Scheme value already. Return
    ;; it as is.
@@ -678,12 +682,14 @@ Sends the message with NAME name and ARGS as content."
                            ((and data (jsc-property? data "result"))
                             (g-print "Got result, running success on %s\n" (jsc->json data))
                             (jsc-function-call success (jsc-property data "result")))
-                           ((> attempts 20)
+                           ((> attempts 5)
                             (g-print "Timeout, running success on %s\n" (jsc->json default))
                             (jsc-function-call success default))
                            (else
                             (sleep 1)
-                            (check-result (+ 1 attempts)))))))
+                            (check-result (+ 1 attempts))))))
+                      (g-print "Result checking done, returning null\n")
+                      (make-jsc-null))
       context))))
 
 
@@ -855,8 +861,8 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
    page message %null-pointer
    (make-g-async-callback (lambda (object reply-message)
                             (g-print "Got a reply with contents %s\n" (g-variant-string (message-params reply-message)))
-                            (when (or callback
-                                    (not (null-pointer? callback)))
+                            (when (and callback
+                                       (not (null-pointer? callback)))
                                 (callback object reply-message)))
                           "webkit_web_page_send_message_to_view_finish")
    %null-pointer))
