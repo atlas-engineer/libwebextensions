@@ -1,6 +1,11 @@
 ;;;; SPDX-FileCopyrightText: Atlas Engineer LLC
 ;;;; SPDX-License-Identifier: BSD-3-Clause
 
+;;; This file is huge, and thus more inspectable if you enable Hideshow
+;;; (or other folding mode) on geiser-mode-hook (or whatever
+;;; Scheme/Lisp mode you use):
+;;;
+;;; (add-hook 'geiser-mode-hook 'hs-minor-mode)
 (define-module (webkit-webextensions)
   #:use-module (system vm program)
   #:use-module (system foreign)
@@ -10,13 +15,7 @@
   #:use-module (srfi srfi-9) ;; Record types.
   #:export (entry-webextensions))
 
-;;; This file is huge, and thus more inspectable if you enable Hideshow
-;;; (or other folding mode) on geiser-mode-hook (or whatever
-;;; Scheme/Lisp mode you use):
-;;;
-;;; (add-hook 'geiser-mode-hook 'hs-minor-mode)
-
-;; When developing, try:
+;;; When developing, try:
 ;; (define lib (load-foreign-library "/gnu/store/9hijxiihm6l9260wmjsnk6qndh5asdf6-webkitgtk-2.38.5/lib/libwebkit2gtk-4.1.so"))
 (define lib #f)
 
