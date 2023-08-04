@@ -161,15 +161,9 @@ G-VARIANT is implied to be a maybe/string GVariant."
 (define (make-g-async-callback callback finish-fn)
   "Wrap CALLBACK into a pointer suitable for GAsyncCallback.
 
-CALLBACK should have:
-- 2 required arguments.
-- 2 required and 1 optional argument.
-- Or 3 requred arguments.
-
 CALLBACK is called with:
 - an object initializing the async operation.
-- a GAsyncResult already processed.
-- and, optionally, user data pointer.
+- and the GAsyncResult already processed.
 
 CALLBACK doesn't have to be a procedure. If it's not, the async
 callback does nothing (and is NULL).
@@ -179,18 +173,15 @@ FINISH-FN should be one of:
 - Procedure on object and GAsyncResult."
   (typecheck 'make-g-async-callback finish-fn string? procedure?)
   (if (procedure? callback)
-      (procedure->pointer* (lambda (object result data)
-                             (apply callback object
-                                    (cond
-                                     ((string? finish-fn)
-                                      ((foreign-fn finish-fn '(* * *) '*)
-                                       object result %null-pointer))
-                                     ((procedure? finish-fn)
-                                      (finish-fn object result)))
-                                    (if (equal? 3 (procedure-maximum-arity procedure))
-                                        '()
-                                        (list data))))
-                           '(* * *) void)
+      (procedure->pointer* (lambda (object result)
+                             (callback
+                              object (cond
+                                      ((string? finish-fn)
+                                       ((foreign-fn finish-fn '(* * *) '*)
+                                        object result %null-pointer))
+                                      ((procedure? finish-fn)
+                                       (finish-fn object result)))))
+                           '(* *) void)
       %null-pointer))
 
 (define (procedure-maximum-arity procedure)
