@@ -658,24 +658,38 @@ and leads to weird behaviors."
     id))
 (define *callback-table* (make-hash-table))
 
-(define* (make-jsc-promise success #:key failure default (context (jsc-context-get/make)))
-  "Create a JS promise with SUCCESS running on completion and FAILURE on error.
-SUCCESS/FAILURE is determined based on `*callback-table*' data.
-When the result fetching timeouts (10 seconds), calls SUCCESS on
-DEFAULT."
+(define* (make-jsc-promise name args #:key (context (jsc-context-get/make))
+                           (default (make-jsc-null context)))
+  "Create a JS promise waiting on NAME message reply.
+Sends the message with NAME name and ARGS as content."
   (let ((id (get-id)))
+    (g-print "Sending a message to page\n")
+    (page-send-message
+     (make-message name (jsc->json (scm->jsc args context)))
+     (lambda (page reply)
+       (g-print "Message replied to\n")
+       (hash-set! *callback-table*
+                  id (json->jsc (g-variant-string (message-params reply)) context))))
     (jsc-constructor-call
      (jsc-context-value "Promise" context)
      (make-jsc-function
-      %null-pointer (lambda (suc fail)
+      %null-pointer (lambda (success failure)
+                      (g-print "Callback in\n")
                       (let check-result ((attempts 0))
                         (let ((data (hash-ref *callback-table* id)))
+                          (g-print "Got a %s data\n" (format #f "~s" data))
                           (cond
-                           ((and data (jsc-instance-of? data "Error"))
-                            (jsc-function-call failure data))
-                           (data
-                            (jsc-function-call success data))
-                           ((> attempts 10)
+                           ;; If there was an error, then browser
+                           ;; returns {"error" : "error message"}
+                           ((and data (jsc-property? data "error"))
+                            (g-print "Got error, running failure on %s\n" (jsc->json data))
+                            (jsc-function-call failure (jsc-property data "error")))
+                           ;; If there is a result it's under "result" key.
+                           ((and data (jsc-property? data "result"))
+                            (g-print "Got result, running success on %s\n" (jsc->json data))
+                            (jsc-function-call success (jsc-property data "result")))
+                           ((> attempts 20)
+                            (g-print "Timeout, running success on %s\n" (jsc->json default))
                             (jsc-function-call success default))
                            (else
                             (sleep 1)
@@ -849,7 +863,12 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
                             #:optional (callback %null-pointer) (page *page*))
   ((foreign-fn "webkit_web_page_send_message_to_view" '(* * * * *) void)
    page message %null-pointer
-   (make-g-async-callback callback "webkit_web_page_send_message_to_view_finish")
+   (make-g-async-callback (lambda (object reply-message)
+                            (g-print "Got a reply with contents %s\n" (g-variant-string (message-params reply-message)))
+                            (when (or callback
+                                    (not (null-pointer? callback)))
+                                (callback object reply-message)))
+                          "webkit_web_page_send_message_to_view_finish")
    %null-pointer))
 
 (define (page-main-frame page)
@@ -1185,10 +1204,19 @@ Should? always return a pointer to ScriptWorld."
                        (g-print "Calling setter for prop with %s\n" (format #f "~s" (jsc->scm value)))
                        (set! number (jsc->scm value))
                        value))
+               (let ((val #f))
+                 (list "prop2" #:property
+                       (lambda (instance)
+                         (g-print "Calling getter for prop2\n")
+                         (scm->jsc val))
+                       (lambda (instance value)
+                         (g-print "Calling setter for prop2 with %s\n" (format #f "~s" (jsc->scm value)))
+                         (set! val (jsc->scm value))
+                         value)))
                (list "method" #:method
                      (lambda (instance arg)
                        (g-print "Calling method with %s\n" (format #f "~s" (jsc->scm arg)))
-                       (scm->jsc (+ (jsc->scm arg) number)))))
+                       (make-jsc-promise "browser.test.method" (list arg)))))
              context))))
       '(* * *) void))))
 
@@ -1197,60 +1225,46 @@ Should? always return a pointer to ScriptWorld."
 
 ;;; Entry point and signal processors
 
-(define (call-with-backtrace thunk)
-  "Print backtrace on error."
-  (with-exception-handler
-      (lambda (exn)
-        (backtrace)
-        (raise-exception exn))
-    thunk))
-
 (define (message-received-callback page message)
-  (call-with-backtrace
-   (lambda ()
-     (g-print "Got a message '%s' with content \n'%s'\n"
-              (message-name message)
-              (or (g-variant-string (message-params message)) ""))
-     (let* ((param-string (or (g-variant-string (message-params message)) ""))
-            (param-jsc (json->jsc param-string)))
-       (cond
-        ((and (string=? (message-name message) "addExtension")
-              (not (hash-ref *web-extensions* (jsc-property param-jsc "name"))))
-         (g-print "Building extension with '%s' name\n" (jsc-property param-jsc "name"))
-         (hash-set! *web-extensions* (jsc-property param-jsc "name")
-                    (make-web-extension param-jsc)))))
-     (message-reply message)
-     1)))
+  (g-print "Got a message '%s' with content \n'%s'\n"
+           (message-name message)
+           (or (g-variant-string (message-params message)) ""))
+  (let* ((param-string (or (g-variant-string (message-params message)) ""))
+         (param-jsc (json->jsc param-string)))
+    (cond
+     ((and (string=? (message-name message) "addExtension")
+           (not (hash-ref *web-extensions* (jsc-property param-jsc "name"))))
+      (g-print "Building extension with '%s' name\n" (jsc-property param-jsc "name"))
+      (hash-set! *web-extensions* (jsc-property param-jsc "name")
+                 (make-web-extension param-jsc)))))
+  (message-reply message)
+  1)
 
 (define (send-request-callback page request redirected-response)
-  (call-with-backtrace
-   (lambda ()
-     (g-print "Sending a request to '%s'\n" (request-uri request))
-     ;; (g-print "Headers are: %s\n"
-     ;;          (format #f "~s" (request-headers request)))
-     ;; Watch out: this one if NULL more often than not!
-     (when (pointer/false redirected-response)
-       (g-print "Got a redirection response for '%s' and status %i\n"
-                (response-uri redirected-response) (response-status-code redirected-response)))
-     ;; 1 = Stop processing, terminate the view.
-     ;; 0 = Continue processing.
-     0)))
+  ;; (g-print "Sending a request to '%s'\n" (request-uri request))
+  ;; (g-print "Headers are: %s\n"
+  ;;          (format #f "~s" (request-headers request)))
+  ;; Watch out: this one if NULL more often than not!
+  (when (pointer/false redirected-response)
+    (g-print "Got a redirection response for '%s' and status %i\n"
+             (response-uri redirected-response) (response-status-code redirected-response)))
+  ;; 1 = Stop processing, terminate the view.
+  ;; 0 = Continue processing.
+  0)
 
 (define (page-created-callback extension page)
-  (call-with-backtrace
-   (lambda ()
-     (set! *page* page)
-     (g-print "Page %i created!\n" (page-id page))
-     (g-signal-connect
-      page "user-message-received"
-      (procedure->pointer*
-       message-received-callback '(* *) unsigned-int))
-     (g-print "User message handler installed!\n")
-     (g-signal-connect
-      page "send-request"
-      (procedure->pointer*
-       send-request-callback '(* * *) unsigned-int))
-     (g-print "Request handler installed!\n"))))
+  (set! *page* page)
+  (g-print "Page %i created!\n" (page-id page))
+  (g-signal-connect
+   page "user-message-received"
+   (procedure->pointer*
+    message-received-callback '(* *) unsigned-int))
+  (g-print "User message handler installed!\n")
+  (g-signal-connect
+   page "send-request"
+   (procedure->pointer*
+    send-request-callback '(* * *) unsigned-int))
+  (g-print "Request handler installed!\n"))
 
 (define (entry-webextensions extension-ptr)
   (g-signal-connect
