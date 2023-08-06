@@ -658,6 +658,8 @@ Sends the message with NAME name and ARGS as content."
      (make-jsc-function
       %null-pointer (lambda (success failure)
                       (g-print "Callback in")
+                      ;; TODO: Use JS async setTimeout instead—doesn't
+                      ;; occupy the thread.
                       (let check-result ((attempts 0))
                         (let ((data (hash-ref *callback-table* id)))
                           (g-print "Got ~s data" data)
