@@ -1243,50 +1243,69 @@ Should? always return a pointer to ScriptWorld."
 
 ;;; Entry point and signal processors
 
+(define (catch-all thunk)
+  (with-exception-handler
+      (lambda (exn)
+        (format (current-error-port)
+                "Uncaught exception: ~s\n" exn)
+        (backtrace)
+        #f)
+    thunk
+    #:unwind? #t))
+
 (define (message-received-callback page message)
-  (g-print "Got a message '~s' with content
+  (catch-all
+   (lambda ()
+     (g-print "Got a message '~s' with content
 '~s'"
-           (message-name message)
-           (or (g-variant-string (message-params message)) ""))
-  (let* ((param-string (or (g-variant-string (message-params message)) ""))
-         (param-jsc (json->jsc param-string)))
-    (cond
-     ((and (string=? (message-name message) "addExtension")
-           (not (hash-ref *web-extensions* (jsc-property param-jsc "name"))))
-      (g-print "Building extension with '~s' name\n" (jsc-property param-jsc "name"))
-      (hash-set! *web-extensions* (jsc-property param-jsc "name")
-                 (make-web-extension param-jsc)))))
-  (message-reply message)
+              (message-name message)
+              (or (g-variant-string (message-params message)) ""))
+     (let* ((param-string (or (g-variant-string (message-params message)) ""))
+            (param-jsc (json->jsc param-string)))
+       (cond
+        ((and (string=? (message-name message) "addExtension")
+              (not (hash-ref *web-extensions* (jsc-property param-jsc "name"))))
+         (g-print "Building extension with '~s' name\n" (jsc-property param-jsc "name"))
+         (hash-set! *web-extensions* (jsc-property param-jsc "name")
+                    (make-web-extension param-jsc)))))
+     (message-reply message)))
   1)
 
 (define (send-request-callback page request redirected-response)
-  ;; (g-print "Sending a request to '~s'" (request-uri request))
-  ;; (g-print "Headers are: ~s"
-  ;;          (request-headers request))
-  ;; Watch out: this one if NULL more often than not!
-  (when (pointer/false redirected-response)
-    (g-print "Got a redirection response for '~s' and status ~d"
-             (response-uri redirected-response) (response-status-code redirected-response)))
+  (catch-all
+   (lambda ()
+     ;; (g-print "Sending a request to '~s'" (request-uri request))
+     ;; (g-print "Headers are: ~s"
+     ;;          (request-headers request))
+     ;; Watch out: this one if NULL more often than not!
+     (when (pointer/false redirected-response)
+       (g-print "Got a redirection response for '~s' and status ~d"
+                (response-uri redirected-response) (response-status-code redirected-response)))))
   ;; 1 = Stop processing, terminate the view.
   ;; 0 = Continue processing.
   0)
 
 (define (page-created-callback extension page)
-  (set! *page* page)
-  (g-print "Page ~d created!" (page-id page))
-  (g-signal-connect
-   page "user-message-received"
-   (procedure->pointer*
-    message-received-callback '(* *) unsigned-int))
-  (g-print "User message handler installed!")
-  (g-signal-connect
-   page "send-request"
-   (procedure->pointer*
-    send-request-callback '(* * *) unsigned-int))
-  (g-print "Request handler installed!"))
+  (catch-all
+   (lambda ()
+     (set! *page* page)
+     (g-print "Page ~d created!" (page-id page))
+     (g-signal-connect
+      page "user-message-received"
+      (procedure->pointer*
+       message-received-callback '(* *) unsigned-int))
+     (g-print "User message handler installed!")
+     (g-signal-connect
+      page "send-request"
+      (procedure->pointer*
+       send-request-callback '(* * *) unsigned-int))
+     (g-print "Request handler installed!"))))
 
 (define (entry-webextensions extension-ptr)
-  (g-signal-connect
-   extension-ptr "page-created"
-   (procedure->pointer* page-created-callback '(* *) void))
-  (g-print "WebExtensions Library handlers installed."))
+  (catch-all
+   (lambda ()
+     (debug-enable)
+     (g-signal-connect
+      extension-ptr "page-created"
+      (procedure->pointer* page-created-callback '(* *) void))
+     (g-print "WebExtensions Library handlers installed."))))
