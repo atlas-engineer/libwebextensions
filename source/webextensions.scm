@@ -221,7 +221,11 @@ VALUE can be a Scheme value or a pointer to JSCValue."
 
 (define (jsc-context-exception context)
   "Return the last JSCException in CONTEXT."
-  (pointer/false ((foreign-fn "jsc_context_get_expression" '(*) '*) context)))
+  (pointer/false ((foreign-fn "jsc_context_get_exception" '(*) '*) context)))
+
+(define (jsc-context-exception-clear! context)
+  "Clear the last raised exception."
+  ((foreign-fn "jsc_context_clear_exception" '(*) void) context))
 
 (define* (jsc-context-value name #:optional (context (jsc-context-get/make)))
   "Returns the JSCValue bound to NAME in CONTEXT."
@@ -238,6 +242,20 @@ Inherits from PARENT-CLASS (JSCClass pointer), if any."
    parent-class
    %null-pointer
    %null-pointer))
+
+;; JSCException
+
+(define (jsc-exception-name exception)
+  (pointer->string*
+   (pointer/false ((foreign-fn "jsc_exception_get_name" '(*) '*) exception))))
+
+(define (jsc-exception-message exception)
+  (pointer->string*
+   (pointer/false ((foreign-fn "jsc_exception_get_message" '(*) '*) exception))))
+
+(define (jsc-exception-report exception)
+  (pointer->string*
+   (pointer/false ((foreign-fn "jsc_exception_report" '(*) '*) exception))))
 
 ;; JSCClass
 
@@ -541,21 +559,34 @@ a JSCValue for undefined."
 (define (apply-with-args function-name initial-args args)
   "Helper for function application functions.
 Applies FUNCTION-NAME to INITIAL-ARGS and ARGS."
-  (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*))))
-    (apply
-     (foreign-fn function-name
-                 (append
-                  (make-list (length initial-args) '*)
-                  (make-list (* 2 (length args)) '*)
-                  (list unsigned-int))
-                 '*)
-     (append initial-args
-             (fold (lambda (a l)
-                     (append l (list jsc-type (scm->jsc a))))
-                   '()
-                   args)
-             ;; G_TYPE_NONE (hopefully portable)
-             (list 4)))))
+  (let* ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*)))
+         (context (or (and-let* ((context (pointer/false
+                                           (jsc-context (first initial-args)))))
+                        context)
+                      (jsc-context-get/make)))
+         (_ (begin
+              (jsc-context-exception-clear! context)
+              #t))
+         (value
+          (apply
+           (foreign-fn function-name
+                       (append
+                        (make-list (length initial-args) '*)
+                        (make-list (* 2 (length args)) '*)
+                        (list unsigned-int))
+                       '*)
+           (append initial-args
+                   (fold (lambda (a l)
+                           (append l (list jsc-type (scm->jsc a))))
+                         '()
+                         args)
+                   ;; G_TYPE_NONE (hopefully portable)
+                   (list 4)))))
+    (and-let* ((exception (pointer/false (jsc-context-exception context))))
+      (error "JS " (jsc-exception-name exception) " in " function-name ": "
+             (jsc-exception-message exception) "
+" (jsc-exception-report exception)))
+    value))
 
 (define* (jsc-function-call function #:rest args)
   (apply-with-args "jsc_value_function_call" (list function) args))
