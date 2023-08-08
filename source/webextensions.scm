@@ -538,9 +538,12 @@ a JSCValue for undefined."
                          (make-list number-of-args '*))
                  '*)
      context
-     (if name
-         (string->pointer* name)
-         %null-pointer)
+     (cond
+      ((pointer? name)
+       name)
+      ((string? name)
+       (string->pointer* name))
+      (else %null-pointer))
      (procedure->pointer*
       (lambda* (#:rest args)
         (let ((value (apply callback args)))
