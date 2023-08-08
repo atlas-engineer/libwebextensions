@@ -15,7 +15,7 @@
   #:use-module (srfi srfi-9) ;; Record types.
   #:export (entry-webextensions))
 
-;;; When developing, try:
+;;; When developing, try (obviously with machine-specific location):
 ;; (define lib (load-foreign-library "/gnu/store/9hijxiihm6l9260wmjsnk6qndh5asdf6-webkitgtk-2.38.5/lib/libwebkit2gtk-4.1.so"))
 (define lib #f)
 
