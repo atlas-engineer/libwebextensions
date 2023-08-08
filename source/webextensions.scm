@@ -693,7 +693,8 @@ Sends the message with NAME name and ARGS as content."
                        (let ((data (json->jsc (g-variant-string (message-params reply)) context)))
                          (g-print "Got ~s data" data)
                          (cond
-                          ((not (jsc-object? data)))
+                          ((not (jsc-object? data))
+                           (g-print "Not a JS object: ~s" data))
                           ;; If there was an error, then browser
                           ;; returns {"error" : "error message"}
                           ((jsc-property? data "error")
@@ -704,14 +705,21 @@ Sends the message with NAME name and ARGS as content."
                            (g-print "Got result, running success on ~s" (jsc->json data))
                            (jsc-function-call success (jsc-property data "result")))))))
                     (g-print "Message sent!")
-                    ;; Return a terribly long (10 seconds) setTimeout
-                    ;; to make Promise wait. It either gets resolved
-                    ;; with message above or timeout here.
-                    (jsc-function-call
-                     (jsc-context-value "setTimeout" context)
-                     (lambda ()
-                       (jsc-function-call success default))
-                     10000))
+                    ;; Returning a ten-seconds promise seems to delay
+                    ;; the buffer crash be these ten seconds. Page
+                    ;; message callbacks don't fire, though.
+                    (jsc-constructor-call
+                     (jsc-context-value "Promise" context)
+                     (make-jsc-function
+                      %null-pointer
+                      (lambda (success-inner)
+                        (jsc-function-call
+                         (jsc-context-value "setTimeout" context)
+                         (lambda ()
+                           (g-print "Timeout!")
+                           (jsc-function-call success default))
+                         10000))))
+                    (make-jsc-null context))
     context)))
 
 
