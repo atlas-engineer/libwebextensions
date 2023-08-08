@@ -161,6 +161,7 @@ FINISH-FN should be one of:
 - String (name of the _finish foreign function).
 - Procedure on object and GAsyncResult."
   (typecheck 'make-g-async-callback finish-fn string? procedure?)
+  (g-print "Creating a GAsyncCallback for ~s finishing with ~a" callback finish-fn)
   (if (procedure? callback)
       (procedure->pointer* (lambda (object result)
                              (callback
@@ -679,43 +680,39 @@ and leads to weird behaviors."
                            (default (make-jsc-null context)))
   "Create a JS promise waiting on NAME message reply.
 Sends the message with NAME name and ARGS as content."
-  (let ((id (get-id)))
-    (g-print "Sending a message to page")
-    (page-send-message
-     (make-message name (jsc->json (scm->jsc args context)))
-     (lambda (page reply)
-       (g-print "Message replied to")
-       (hash-set! *callback-table*
-                  id (json->jsc (g-variant-string (message-params reply)) context))))
-    (jsc-constructor-call
-     (jsc-context-value "Promise" context)
-     (make-jsc-function
-      %null-pointer (lambda (success failure)
-                      (g-print "Callback in")
-                      ;; TODO: Use JS async setTimeout instead—doesn't
-                      ;; occupy the thread.
-                      (let check-result ((attempts 0))
-                        (let ((data (hash-ref *callback-table* id)))
-                          (g-print "Got ~s data" data)
-                          (cond
-                           ;; If there was an error, then browser
-                           ;; returns {"error" : "error message"}
-                           ((and data (jsc-property? data "error"))
-                            (g-print "Got error, running failure on ~s" (jsc->json data))
-                            (jsc-function-call failure (jsc-property data "error")))
-                           ;; If there is a result it's under "result" key.
-                           ((and data (jsc-property? data "result"))
-                            (g-print "Got result, running success on ~s" (jsc->json data))
-                            (jsc-function-call success (jsc-property data "result")))
-                           ((> attempts 5)
-                            (g-print "Timeout, running success on ~s" (jsc->json default))
-                            (jsc-function-call success default))
-                           (else
-                            (sleep 1)
-                            (check-result (+ 1 attempts))))))
-                      (g-print "Result checking done, returning null")
-                      (make-jsc-null))
-      context))))
+  (g-print "Sending a message to page")
+  (jsc-constructor-call
+   (jsc-context-value "Promise" context)
+   (make-jsc-function
+    %null-pointer (lambda (success failure)
+                    (g-print "Callback in")
+                    (page-send-message
+                     (make-message name (jsc->json (scm->jsc args context)))
+                     (lambda (page reply)
+                       (g-print "Message replied to")
+                       (let ((data (json->jsc (g-variant-string (message-params reply)) context)))
+                         (g-print "Got ~s data" data)
+                         (cond
+                          ((not (jsc-object? data)))
+                          ;; If there was an error, then browser
+                          ;; returns {"error" : "error message"}
+                          ((jsc-property? data "error")
+                           (g-print "Got error, running failure on ~s" (jsc->json data))
+                           (jsc-function-call failure (make-jsc-error (jsc-property data "error") context)))
+                          ;; If there is a result it's under "result" key.
+                          ((jsc-property? data "result")
+                           (g-print "Got result, running success on ~s" (jsc->json data))
+                           (jsc-function-call success (jsc-property data "result")))))))
+                    (g-print "Message sent!")
+                    ;; Return a terribly long (10 seconds) setTimeout
+                    ;; to make Promise wait. It either gets resolved
+                    ;; with message above or timeout here.
+                    (jsc-function-call
+                     (jsc-context-value "setTimeout" context)
+                     (lambda ()
+                       (jsc-function-call success default))
+                     10000))
+    context)))
 
 
 ;;; Webkit extensions API
@@ -849,6 +846,7 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
 ;; UserMessage
 
 (define* (make-message name #:optional (params (make-g-variant #f)))
+  (g-print "Making user message ~s with params ~s" name params)
   ((foreign-fn "webkit_user_message_new" '(* *) '*)
    (string->pointer* name)
    (cond
@@ -882,15 +880,17 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
 
 (define* (page-send-message message
                             #:optional (callback %null-pointer) (page *page*))
+  (g-print "Sending page message ~s with callback ~s" message callback)
   ((foreign-fn "webkit_web_page_send_message_to_view" '(* * * * *) void)
    page message %null-pointer
    (make-g-async-callback (lambda (object reply-message)
                             (g-print "Got a reply with contents ~s" (g-variant-string (message-params reply-message)))
                             (when (and callback
                                        (not (null-pointer? callback)))
-                                (callback object reply-message)))
+                              (callback object reply-message)))
                           "webkit_web_page_send_message_to_view_finish")
-   %null-pointer))
+   %null-pointer)
+  (g-print "Message sent to page in page-send-message"))
 
 (define (page-main-frame page)
   "Get the main WebKitFrame associated with PAGE."
