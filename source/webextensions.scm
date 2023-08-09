@@ -164,6 +164,8 @@ FINISH-FN should be one of:
   (g-print "Creating a GAsyncCallback for ~s finishing with ~a" callback finish-fn)
   (if (procedure? callback)
       (procedure->pointer* (lambda (object result)
+                             (g-print "GAsyncCallback entered with ~s and ~s"
+                                      object result)
                              (callback
                               object (cond
                                       ((string? finish-fn)
@@ -687,8 +689,19 @@ Sends the message with NAME name and ARGS as content."
                    (make-jsc-function
                     %null-pointer (lambda (suc fail)
                                     (g-print "Callback in")
-                                    (set! success suc)
-                                    (set! failure fail)
+                                    (set! success
+                                          (make-jsc-function
+                                           #f (lambda (val)
+                                                (g-print "Calling success on ~a"
+                                                         (jsc->json val))
+                                                (jsc-function-call suc val))
+                                           context))
+                                    (set! failure
+                                          (make-jsc-function
+                                           #f (lambda (err)
+                                                (g-print "Calling failure on error")
+                                                (jsc-function-call fail err))
+                                           context))
                                     ;; Returning a ten-seconds promise seems to delay
                                     ;; the buffer crash be these ten seconds. Page
                                     ;; message callbacks don't fire, though.
@@ -1281,7 +1294,12 @@ Should? always return a pointer to ScriptWorld."
          (g-print "Building extension with '~s' name\n" (jsc-property param-jsc "name"))
          (hash-set! *web-extensions* (jsc-property param-jsc "name")
                     (make-web-extension param-jsc)))))
-     (message-reply message)))
+     (message-reply message)
+     (page-send-message
+      (make-message "hello" "test")
+      (lambda (page reply)
+        (g-print "Got message reply ~s with contents ~s"
+                 (message-name reply) (g-variant-string (message-params reply)))))))
   1)
 
 (define (send-request-callback page request redirected-response)
