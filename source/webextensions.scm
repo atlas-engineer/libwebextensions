@@ -893,8 +893,7 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
    page message %null-pointer
    (make-g-async-callback (lambda (object reply-message)
                             (g-print "Got a reply with contents ~s" (g-variant-string (message-params reply-message)))
-                            (when (and callback
-                                       (not (null-pointer? callback)))
+                            (when (procedure? callback)
                               (callback object reply-message)))
                           "webkit_web_page_send_message_to_view_finish")
    %null-pointer)
