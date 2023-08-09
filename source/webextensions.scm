@@ -676,51 +676,54 @@ and leads to weird behaviors."
     id))
 (define *callback-table* (make-hash-table))
 
-(define* (make-jsc-promise name args #:key (context (jsc-context-get/make))
-                           (default (make-jsc-null context)))
+(define* (make-jsc-promise name args #:key (context (jsc-context-get/make)))
   "Create a JS promise waiting on NAME message reply.
 Sends the message with NAME name and ARGS as content."
   (g-print "Sending a message to page")
-  (jsc-constructor-call
-   (jsc-context-value "Promise" context)
-   (make-jsc-function
-    %null-pointer (lambda (success failure)
-                    (g-print "Callback in")
-                    (page-send-message
-                     (make-message name (jsc->json (scm->jsc args context)))
-                     (lambda (page reply)
-                       (g-print "Message replied to")
-                       (let ((data (json->jsc (g-variant-string (message-params reply)) context)))
-                         (g-print "Got ~s data" data)
-                         (cond
-                          ((not (jsc-object? data))
-                           (g-print "Not a JS object: ~s" data))
-                          ;; If there was an error, then browser
-                          ;; returns {"error" : "error message"}
-                          ((jsc-property? data "error")
-                           (g-print "Got error, running failure on ~s" (jsc->json data))
-                           (jsc-function-call failure (make-jsc-error (jsc-property data "error") context)))
-                          ;; If there is a result it's under "result" key.
-                          ((jsc-property? data "result")
-                           (g-print "Got result, running success on ~s" (jsc->json data))
-                           (jsc-function-call success (jsc-property data "result")))))))
-                    (g-print "Message sent!")
-                    ;; Returning a ten-seconds promise seems to delay
-                    ;; the buffer crash be these ten seconds. Page
-                    ;; message callbacks don't fire, though.
-                    (jsc-constructor-call
-                     (jsc-context-value "Promise" context)
-                     (make-jsc-function
-                      %null-pointer
-                      (lambda (success-inner)
-                        (jsc-function-call
-                         (jsc-context-value "setTimeout" context)
-                         (lambda ()
-                           (g-print "Timeout!")
-                           (jsc-function-call success default))
-                         10000))))
-                    (make-jsc-null context))
-    context)))
+  (let* ((success #f)
+         (failure #f)
+         (promise (jsc-constructor-call
+                   (jsc-context-value "Promise" context)
+                   (make-jsc-function
+                    %null-pointer (lambda (suc fail)
+                                    (g-print "Callback in")
+                                    (set! success suc)
+                                    (set! failure fail)
+                                    ;; Returning a ten-seconds promise seems to delay
+                                    ;; the buffer crash be these ten seconds. Page
+                                    ;; message callbacks don't fire, though.
+                                    ;; (g-print "Running timeout")
+                                    ;; (jsc-function-call
+                                    ;;  (jsc-context-value "setTimeout" context)
+                                    ;;  (lambda ()
+                                    ;;    (g-print "Timeout!")
+                                    ;;    (jsc-function-call
+                                    ;;     fail (make-jsc-error
+                                    ;;           (format #f "Timeout waiting for ~s message" name) context)))
+                                    ;;  10000)
+                                    (make-jsc-null context))
+                    context))))
+    (g-print "Success is ~s, failure is ~s" success failure)
+    (page-send-message
+     (make-message name (jsc->json (scm->jsc args context)))
+     (lambda (page reply)
+       (g-print "Message replied to")
+       (let ((data (json->jsc (g-variant-string (message-params reply)) context)))
+         (g-print "Got ~s data" data)
+         (cond
+          ((not (jsc-object? data))
+           (error "Not a JS object: " data ", cannot pass it to Promise callback\n"))
+          ;; If there was an error, then browser
+          ;; returns {"error" : "error message"}
+          ((jsc-property? data "error")
+           (g-print "Got error, running failure on ~s" (jsc->json data))
+           (jsc-function-call failure (make-jsc-error (jsc-property data "error") context)))
+          ;; If there is a result it's under "result" key.
+          ((jsc-property? data "result")
+           (g-print "Got result, running success on ~s" (jsc->json data))
+           (jsc-function-call success (jsc-property data "result")))))))
+    (g-print "Message sent!")
+    promise))
 
 
 ;;; Webkit extensions API
