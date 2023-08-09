@@ -147,20 +147,26 @@ G-VARIANT is implied to be a maybe/string GVariant."
    (string->pointer* signal)
    handler (or data %null-pointer) %null-pointer 0))
 
+(define (procedure-of-arity? arity)
+  (lambda (p)
+    (and (procedure? p)
+         (= arity (procedure-maximum-arity p) (car (procedure-minimum-arity p))))))
+
 (define (make-g-async-callback callback finish-fn)
   "Wrap CALLBACK into a pointer suitable for GAsyncCallback.
 
 CALLBACK is called with:
-- an object initializing the async operation.
+- an object that initiated the async operation.
 - and the GAsyncResult already processed.
 
-CALLBACK doesn't have to be a procedure. If it's not, the async
+CALLBACK doesn't have to be a procedure. If it's NULL or #f, the async
 callback does nothing (and is NULL).
 
 FINISH-FN should be one of:
 - String (name of the _finish foreign function).
 - Procedure on object and GAsyncResult."
   (typecheck 'make-g-async-callback finish-fn string? procedure?)
+  (typecheck 'make-g-async-callback callback pointer? false? (procedure-of-arity? 2))
   (g-print "Creating a GAsyncCallback for ~s finishing with ~a" callback finish-fn)
   (if (procedure? callback)
       (procedure->pointer* (lambda (object result)
@@ -904,6 +910,7 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
 
 (define* (page-send-message message
                             #:optional (callback %null-pointer) (page *page*))
+  (typecheck 'page-send-message callback pointer? false? (procedure-of-arity? 2))
   (g-print "Sending page message ~s with callback ~s" message callback)
   ((foreign-fn "webkit_web_page_send_message_to_view" '(* * * * *) void)
    page message %null-pointer
