@@ -175,10 +175,13 @@ FINISH-FN should be one of:
                              (callback
                               object (cond
                                       ((string? finish-fn)
+                                       (g-print "Finish-fn is a string")
                                        ((foreign-fn finish-fn '(* * *) '*)
                                         object result %null-pointer))
                                       ((procedure? finish-fn)
-                                       (finish-fn object result)))))
+                                       (g-print "Finish-fn is a procedure")
+                                       (finish-fn object result))))
+                             (g-print "GAsyncCallback terminated"))
                            '(* *) void)
       %null-pointer))
 
@@ -914,11 +917,11 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
   (g-print "Sending page message ~s with callback ~s" message callback)
   ((foreign-fn "webkit_web_page_send_message_to_view" '(* * * * *) void)
    page message %null-pointer
-   (make-g-async-callback (lambda (object reply-message)
-                            (g-print "Got a reply with contents ~s" (g-variant-string (message-params reply-message)))
-                            (when (procedure? callback)
-                              (callback object reply-message)))
-                          "webkit_web_page_send_message_to_view_finish")
+   (make-g-async-callback
+    (lambda (object reply-message)
+      (g-print "Got a reply with contents ~s" (g-variant-string (message-params reply-message)))
+      (callback object reply-message))
+    "webkit_web_page_send_message_to_view_finish")
    %null-pointer)
   (g-print "Message sent to page in page-send-message"))
 
