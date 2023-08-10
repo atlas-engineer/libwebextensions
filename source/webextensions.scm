@@ -124,21 +124,25 @@ arglist."
 (define (g-variant-string g-variant)
   "Fetch the G-VARIANT string, if there's one.
 G-VARIANT is implied to be a maybe/string GVariant."
+  (typecheck 'g-variant-string g-variant pointer? false?)
+  (g-print "GVariant is ~s" g-variant)
   (and-let* ((g-variant (pointer/false g-variant))
              (class (integer->char
                      ((foreign-fn "g_variant_classify" '(*) unsigned-int) g-variant)))
-             (get (lambda (name g-variant)
-                    (pointer/false ((foreign-fn name '(*) '*) g-variant)))))
+             (_ (g-print "Class is ~s" class))
+             (get-string (lambda (g-var)
+                           (pointer->string*
+                            (pointer/false ((foreign-fn "g_variant_get_string" '(* *) '*)
+                                            g-var %null-pointer))))))
     (cond
-     ((and (eq? class #\m)
-           (get "g_variant_get_maybe" g-variant))
-      (pointer->string
-       (get "g_variant_get_string"
-            (get "g_variant_get_maybe" g-variant) )))
+     ((eq? class #\m)
+      (and-let* ((maybe ((foreign-fn "g_variant_get_maybe" '(*) '*) g-var))
+                 (string (get-string maybe)))
+        string))
      ((eq? class #\s)
-      (get "g_variant_get_string" g-variant))
+      (get-string g-variant))
      (else
-      (get "g_variant_get_string" g-variant)))))
+      (get-string g-variant)))))
 
 (define* (g-signal-connect instance signal handler #:optional (data #f))
   "Connect HANDLER (pointer to procedure) to SIGNAL of INSTANCE."
@@ -172,15 +176,18 @@ FINISH-FN should be one of:
       (procedure->pointer* (lambda (object result)
                              (g-print "GAsyncCallback entered with ~s and ~s"
                                       object result)
-                             (callback
-                              object (cond
-                                      ((string? finish-fn)
-                                       (g-print "Finish-fn is a string")
-                                       ((foreign-fn finish-fn '(* * *) '*)
-                                        object result %null-pointer))
-                                      ((procedure? finish-fn)
-                                       (g-print "Finish-fn is a procedure")
-                                       (finish-fn object result))))
+                             (let ((final-result
+                                    (cond
+                                     ((string? finish-fn)
+                                      (g-print "Finish-fn is a string")
+                                      ((foreign-fn finish-fn '(* * *) '*)
+                                       object result %null-pointer))
+                                     ((procedure? finish-fn)
+                                      (g-print "Finish-fn is a procedure")
+                                      (finish-fn object result)))))
+                               (g-print "Final result is ~s, callback is ~s"
+                                        final-result callback)
+                               (callback object final-result))
                              (g-print "GAsyncCallback terminated"))
                            '(* *) void)
       %null-pointer))
@@ -455,8 +462,9 @@ instead."
   "Get the Scheme value for PROPERTY-NAME-named property of OBJECT."
   (jsc->scm (%jsc-property object property-name)))
 (define (jsc-property? object property-name)
-  ((foreign-fn "jsc_value_object_has_property" '(* *) '*)
-   object (ensure-index property-name)))
+  (positive?
+   ((foreign-fn "jsc_value_object_has_property" '(* *) unsigned-int)
+    object (ensure-index property-name))))
 (define (jsc-property-set! object property-name value)
   "Set the PROPERTY-NAME-d property of OBJECT to VALUE.
 - OBJECT is JSCValue.
@@ -598,9 +606,10 @@ Applies FUNCTION-NAME to INITIAL-ARGS and ARGS."
                    ;; G_TYPE_NONE (hopefully portable)
                    (list 4)))))
     (and-let* ((exception (pointer/false (jsc-context-exception context))))
-      (error "JS " (jsc-exception-name exception) " in " function-name ": "
-             (jsc-exception-message exception) "
-" (jsc-exception-report exception)))
+      (error (string-append
+              "JS " (jsc-exception-name exception) " in " function-name ": "
+              (jsc-exception-message exception) "\n"
+              (jsc-exception-report exception))))
     value))
 
 (define* (jsc-function-call function #:rest args)
@@ -691,62 +700,46 @@ and leads to weird behaviors."
   "Create a JS promise waiting on NAME message reply.
 Sends the message with NAME name and ARGS as content."
   (g-print "Sending a message to page")
-  (let* ((success #f)
-         (failure #f)
-         (promise (jsc-constructor-call
-                   (jsc-context-value "Promise" context)
-                   (make-jsc-function
-                    %null-pointer (lambda (suc fail)
-                                    (g-print "Callback in")
-                                    (set! success
-                                          (make-jsc-function
-                                           #f (lambda (val)
-                                                (g-print "Calling success on ~a"
-                                                         (jsc->json val))
-                                                (jsc-function-call suc val))
-                                           context))
-                                    (set! failure
-                                          (make-jsc-function
-                                           #f (lambda (err)
-                                                (g-print "Calling failure on error")
-                                                (jsc-function-call fail err))
-                                           context))
-                                    ;; Returning a ten-seconds promise seems to delay
-                                    ;; the buffer crash be these ten seconds. Page
-                                    ;; message callbacks don't fire, though.
-                                    ;; (g-print "Running timeout")
-                                    ;; (jsc-function-call
-                                    ;;  (jsc-context-value "setTimeout" context)
-                                    ;;  (lambda ()
-                                    ;;    (g-print "Timeout!")
-                                    ;;    (jsc-function-call
-                                    ;;     fail (make-jsc-error
-                                    ;;           (format #f "Timeout waiting for ~s message" name) context)))
-                                    ;;  10000)
-                                    (make-jsc-null context))
-                    context))))
-    (g-print "Success is ~s, failure is ~s" success failure)
-    (page-send-message
-     (make-message name (jsc->json (scm->jsc args context)))
-     (lambda (page reply)
-       (g-print "Message replied to")
-       (let ((data (json->jsc (g-variant-string (message-params reply)) context)))
-         (g-print "Got ~s data" data)
-         (cond
-          ((not (jsc-object? data))
-           (error "Not a JS object: " data ", cannot pass it to Promise callback\n"))
-          ;; If there was an error, then browser
-          ;; returns {"error" : "error message"}
-          ((jsc-property? data "error")
-           (g-print "Got error, running failure on ~s" (jsc->json data))
-           (jsc-function-call failure (make-jsc-error (jsc-property data "error") context)))
-          ;; If there is a result it's under "result" key.
-          ((jsc-property? data "result")
-           (g-print "Got result, running success on ~s" (jsc->json data))
-           (jsc-function-call success (jsc-property data "result")))))))
-    (g-print "Message sent!")
-    promise))
-
+  (jsc-constructor-call
+   (jsc-context-value "Promise" context)
+   (make-jsc-function
+    %null-pointer (lambda (success failure)
+                    (g-print "Callback in")
+                    (page-send-message
+                     (make-message name (jsc->json (scm->jsc args context)))
+                     (lambda (page reply)
+                       (g-print "Message replied to")
+                       (let ((data (json->jsc (g-variant-string (message-params reply)) context)))
+                         (g-print "Got ~s data" data)
+                         (cond
+                          ((not (jsc-object? data))
+                           (error (format
+                                   #f "Not a JS object: ~s, cannot pass it to Promise callback\n"
+                                   data)))
+                          ;; If there was an error, then browser
+                          ;; returns {"error" : "error message"}
+                          ((jsc-property? data "error")
+                           (g-print "Got error, running failure on ~s" (jsc->json data))
+                           (jsc-function-call failure (make-jsc-error (jsc-property data "error") context)))
+                          ;; If there is a result it's under "result" key.
+                          ((jsc-property? data "result")
+                           (g-print "Got result, running success on ~s" (jsc->json data))
+                           (jsc-function-call success (%jsc-property data "result")))))))
+                    (g-print "Message sent!")
+                    ;; Returning a ten-seconds promise seems to delay
+                    ;; the buffer crash be these ten seconds. Page
+                    ;; message callbacks don't fire, though.
+                    ;; (g-print "Running timeout")
+                    ;; (jsc-function-call
+                    ;;  (jsc-context-value "setTimeout" context)
+                    ;;  (lambda ()
+                    ;;    (g-print "Timeout!")
+                    ;;    (jsc-function-call
+                    ;;     fail (make-jsc-error
+                    ;;           (format #f "Timeout waiting for ~s message" name) context)))
+                    ;;  10000)
+                    (make-jsc-null context))
+    context)))
 
 ;;; Webkit extensions API
 
@@ -919,8 +912,11 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
    page message %null-pointer
    (make-g-async-callback
     (lambda (object reply-message)
-      (g-print "Got a reply with contents ~s" (g-variant-string (message-params reply-message)))
-      (callback object reply-message))
+      (let* ((params (message-params reply-message))
+             (_ (g-print "Got a reply with ~s params" (message-params reply-message)))
+             (params-string (g-variant-string params)))
+        (g-print "Got a reply with contents ~s" params-string)
+        (callback object reply-message)))
     "webkit_web_page_send_message_to_view_finish")
    %null-pointer)
   (g-print "Message sent to page in page-send-message"))
@@ -1236,7 +1232,8 @@ Should? always return a pointer to ScriptWorld."
      world "window-object-cleared"
      (procedure->pointer*
       (lambda (world page frame)
-        (g-print "Injecting the extension API into '~s' world" (script-world-name world))
+        (g-print "Injecting the extension API into ~s world"
+                 (script-world-name world))
         (let ((context (frame-jsc-context frame world)))
           (inject-browser context)
           (jsc-context-value-set!
@@ -1298,6 +1295,7 @@ Should? always return a pointer to ScriptWorld."
               (or (g-variant-string (message-params message)) ""))
      (let* ((param-string (or (g-variant-string (message-params message)) ""))
             (param-jsc (json->jsc param-string)))
+       (g-print "Params are")
        (cond
         ((and (string=? (message-name message) "addExtension")
               (not (hash-ref *web-extensions* (jsc-property param-jsc "name"))))
