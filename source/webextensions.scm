@@ -569,7 +569,7 @@ a JSCValue for undefined."
         (let ((value (apply callback args)))
           (if (pointer? value)
               value
-              (make-jsc-undefined))))
+              (scm->jsc value))))
       (make-list number-of-args '*))
      %null-pointer
      %null-pointer
