@@ -8,4 +8,4 @@
 (nyxt:ffi-buffer-evaluate-javascript (nyxt:current-buffer) "browser.test.prop2" "test")
 
 (nyxt:ffi-buffer-evaluate-javascript
- (nyxt:current-buffer) "browser.test.method(null).then((v) => {browser.test.prop2 = v; return null;})" "test")
+ (nyxt:current-buffer) "browser.test.method(null).then((v) => 5)" "test")
