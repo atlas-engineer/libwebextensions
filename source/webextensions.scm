@@ -500,7 +500,7 @@ JSC value pointers."
                                  (scm->jsc value))))))
     arr))
 (define (jsc-array? jsc)
-  (positive? ((foreign-fn "jsc_value_is_array" '(*) unsigned-int))))
+  (positive? ((foreign-fn "jsc_value_is_array" '(*) unsigned-int) jsc)))
 (define (jsc->list object)
   "Convert OBJECT JSCValue array into a Scheme list."
   (let rec ((idx 0))
