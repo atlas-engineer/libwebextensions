@@ -723,7 +723,11 @@ Sends the message with NAME name and ARGS as content."
           (make-message name (jsc->json (scm->jsc args context)))
           (lambda (page reply)
             (g-print "Message replied to")
-            (let ((data (json->jsc (g-variant-string (message-params reply)) context)))
+            (let ((data (json->jsc (g-variant-string (message-params reply)) context))
+                  (run-callback
+                   (jsc-context-evaluate
+                    "(cb, value) => {cb(value)}"
+                    context)))
               (g-print "Got ~s data" data)
               (cond
                ((not (jsc-object? data))
@@ -734,13 +738,13 @@ Sends the message with NAME name and ARGS as content."
                ;; returns {"error" : "error message"}
                ((jsc-property? data "error")
                 (g-print "Got error, running failure ~s on ~s" failure (jsc->json data))
-                (jsc-function-call failure (make-jsc-error (jsc-property data "error") context)))
+                (jsc-function-call run-callback failure (make-jsc-error (jsc-property data "error") context)))
                ;; If there is a result it's under "result" key.
                ((jsc-property? data "result")
                 (g-print "Got result, running success ~s on ~s" success (jsc->json data))
                 (let ((property (%jsc-property data "result")))
                   (g-print "Got property ~s" property)
-                  (jsc-function-call success property)))))))
+                  (jsc-function-call run-callback success property)))))))
          (g-print "Message sent!")
          ;; Returning a ten-seconds promise seems to delay
          ;; the buffer crash be these ten seconds. Page
