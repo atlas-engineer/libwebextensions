@@ -583,8 +583,8 @@ convert it with `scm->jsc'."
   "Helper for function application functions.
 Applies FUNCTION-NAME to INITIAL-ARGS and ARGS."
   ;; FAILS here, initial value for Promise success breaks it.
-  (let* ((_ (g-print "First initial value is an object: ~s"
-                     (jsc-object? (car initial-args))))
+  (let* ((_ (g-print "First initial value is an ~a"
+                     (jsc-type-of (car initial-args))))
          (jsc-type ((foreign-fn "jsc_value_get_type" '() '*)))
          (context (jsc-context (first initial-args)))
          (_ (g-print "Context is ~s" context))
