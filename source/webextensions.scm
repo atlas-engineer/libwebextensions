@@ -653,6 +653,7 @@ already and is returned."
   (cond
    ;; If it's not a pointer, then it's a Scheme value already. Return
    ;; it as is.
+   ((not (pointer? object)) #:unknown)
    ((jsc-null? object) #:null)
    ((jsc-undefined? object) #:undefined)
    ((jsc-boolean? object) #:boolean)
