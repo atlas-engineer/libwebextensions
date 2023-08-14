@@ -649,21 +649,34 @@ already and is returned."
    ((list? object) (make-jsc-array object context))
    ((procedure? object) (make-jsc-function #f object context))))
 
-(define* (jsc->scm object)
-  "Convert JSCValue OBJECT to a Scheme value.
-Does not support objects and functions yet."
-  (g-print "Try converting object ~s to Scheme val" object)
+(define (jsc-type-of object)
   (cond
    ;; If it's not a pointer, then it's a Scheme value already. Return
    ;; it as is.
-   ((not (pointer? object)) object)
    ((jsc-null? object) #:null)
    ((jsc-undefined? object) #:undefined)
-   ((jsc-boolean? object) (jsc->boolean object))
-   ((jsc-string? object) (jsc->string object))
-   ((jsc-number? object) (jsc->number object))
-   ((jsc-array? object) (jsc->list object))
-   ((jsc-object? object) (error "jsc->scm: object conversion not implemented yet"))))
+   ((jsc-boolean? object) #:boolean)
+   ((jsc-string? object) #:string)
+   ((jsc-number? object) #:number)
+   ((jsc-array? object) #:array)
+   ((jsc-function? object) #:function)
+   ((jsc-object? object) #:object)
+   (else #:unknown)))
+
+(define* (jsc->scm object)
+  "Convert JSCValue OBJECT to a Scheme value.
+Does not support objects and functions yet."
+  (g-print "Try converting object ~s of type ~s to Scheme val"
+           object (jsc-type-of object))
+  (case (jsc-type-of object)
+   ((#:unknown) object)
+   ((#:null) #:null)
+   ((#:undefined) #:undefined)
+   ((#:boolean) (jsc->boolean object))
+   ((#:string) (jsc->string object))
+   ((#:number) (jsc->number object))
+   ((#:array) (jsc->list object))
+   (else (error "jsc->scm: object conversion not implemented yet"))))
 
 ;; Scheme types: boolean?, pair?, symbol?, number?, char?, string?, vector?, port?, procedure?
 ;; Guile ones: hash-table? and objects (any predicate for those? record? maybe)
