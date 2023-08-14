@@ -224,7 +224,7 @@ Returns #f outside of them."
 (define* (jsc-context-evaluate code #:optional (context (jsc-context-get/make)))
   "Evaluate CODE in CONTEXT.
 Returns raw JSCValue resulting from CODE evaluation."
-  ((foreign-fn "jsc_context_evaluate" `(* * ,unsigned-int) '*)
+  ((foreign-fn "jsc_context_evaluate" `(* * ,int) '*)
    context (string->pointer* code) -1))
 
 (define* (jsc-context-evaluate* code #:optional (context (jsc-context-get/make)))
