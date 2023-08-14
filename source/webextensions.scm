@@ -593,6 +593,11 @@ Applies FUNCTION-NAME to INITIAL-ARGS and ARGS."
                            '()
                            args))
          (_ (g-print "Args are ~s" final-args))
+         (_ (g-print "Types are ~s" (map (lambda (x)
+                                           (if (eq? jsc-type x)
+                                               #:type
+                                               (jsc-type-of x)))
+                                         final-args)))
          (value
           (apply
            (foreign-fn function-name
