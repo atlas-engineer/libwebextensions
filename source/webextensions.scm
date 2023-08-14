@@ -606,11 +606,11 @@ Applies FUNCTION-NAME to INITIAL-ARGS and ARGS."
                    ;; G_TYPE_NONE (hopefully portable)
                    (list 4))))
          (_ (g-print "Got value ~s" value)))
-    (and-let* ((exception (pointer/false (jsc-context-exception context))))
-      (error (string-append
-              "JS " (jsc-exception-name exception) " in " function-name ": "
-              (jsc-exception-message exception) "\n"
-              (jsc-exception-report exception))))
+    ;; (and-let* ((exception (pointer/false (jsc-context-exception context))))
+    ;;   (error (string-append
+    ;;           "JS " (jsc-exception-name exception) " in " function-name ": "
+    ;;           (jsc-exception-message exception) "\n"
+    ;;           (jsc-exception-report exception))))
     value))
 
 (define* (jsc-function-call function #:rest args)
