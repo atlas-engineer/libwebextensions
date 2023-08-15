@@ -1314,7 +1314,7 @@ Should? always return a pointer to ScriptWorld."
               (or (g-variant-string (message-params message)) ""))
      (let* ((param-string (or (g-variant-string (message-params message)) ""))
             (param-jsc (json->jsc param-string)))
-       (g-print "Params are")
+       (g-print "Params are ~s" param-string)
        (cond
         ((and (string=? (message-name message) "addExtension")
               (not (hash-ref *web-extensions* (jsc-property param-jsc "name"))))
