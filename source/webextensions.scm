@@ -708,14 +708,6 @@ and leads to weird behaviors."
    (jsc-context-value "Error" context)
    (scm->jsc message)))
 
-(define *id* 0)
-(define (get-id)
-  "Create a new ID."
-  (let ((id *id*))
-    (set! *id* (+ 1 id))
-    id))
-(define *callback-table* (make-hash-table))
-
 (define* (make-jsc-promise name args #:key (context (jsc-context-get/make)))
   "Create a JS promise waiting on NAME message reply.
 Sends the message with NAME name and ARGS as content."
