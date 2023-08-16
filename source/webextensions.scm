@@ -610,7 +610,7 @@ Applies FUNCTION-NAME to INITIAL-ARGS and ARGS."
                    final-args
                    ;; G_TYPE_NONE (hopefully portable)
                    (list 4))))
-         (_ (g-print "Got value ~s" value)))
+         (_ (g-print "Got value ~s of type ~a" value (jsc-type-of value))))
     ;; (and-let* ((exception (pointer/false (jsc-context-exception context))))
     ;;   (error (string-append
     ;;           "JS " (jsc-exception-name exception) " in " function-name ": "
