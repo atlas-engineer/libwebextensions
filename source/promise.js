@@ -3,9 +3,11 @@
 
 function closure (check) {
     function rec (success, failure) {
-        var result = check();
+        var value = check();
+        console.log("Got " + value + " value");
         if (result === null) {
             setTimeout(() => {
+                console.log("Timeout fired");
                 rec(success, failure);
             },
                        100);

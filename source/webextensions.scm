@@ -755,10 +755,11 @@ Sends the message with NAME name and ARGS as content."
        (let ((data (json->jsc (g-variant-string (message-params reply)) context)))
          (g-print "Got ~s data" data)
          (cond
-          ((not (jsc-object? data))
+          ((not (or (jsc-object? data)
+                    (jsc-null? data)))
            (error (format
-                   #f "Not a JS object: ~s, cannot pass it to Promise callback\n"
-                   data)))
+                   #f "Not a JS object: ~s (~s), cannot pass it to Promise callback\n"
+                   data (jsc-type-of data))))
           ;; If there was an error, then browser
           ;; returns {"error" : "error message"}
           (else
@@ -768,8 +769,12 @@ Sends the message with NAME name and ARGS as content."
      (jsc-context-evaluate "function closure (check) {
     function rec (success, failure) {
         var value = check();
+        console.log(\"Got \" + value + \" value\");
         if (value === null) {
-            setTimeout(() => {rec(success, failure)},
+            setTimeout(() => {
+                console.log(\"Timeout fired\");
+                rec(success, failure);
+            },
                        100);
         } else {
             if (value.hasOwnProperty(\"error\")) {
@@ -852,6 +857,10 @@ return a JSCValue!"
           (jsc-context-value "browser" context)
           property
           (jsc-constructor-call constructor)))))))
+
+(define-api "tabs" "Tabs"
+  (list "TAB_ID_NONE" #:property (lambda (instance) -1))
+  (list "create" #:method "browser.tabs.create"))
 
 (define (inject-browser context)
   (let* ((class (jsc-class-register! "Browser" context))
@@ -1325,7 +1334,9 @@ Should? always return a pointer to ScriptWorld."
                        (g-print "Calling method with ~s" (jsc->scm arg))
                        (make-jsc-promise "browser.test.method" (list arg)
                                          #:context context))))
-             context))))
+             context)
+            ;; ((hash-ref *apis* "tabs") context)
+            )))
       '(* * *) void))))
 
 (define (we-context web-extension)
