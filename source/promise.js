@@ -11,7 +11,7 @@ function closure (check) {
                        100);
         } else {
             if (result.hasOwnProperty("error")) {
-                error = new Error(value.error);
+                let error = new Error(value.error);
                 failure(error);
             } else if (value.hasOwnProperty("result")) {
                 success(value.result);
