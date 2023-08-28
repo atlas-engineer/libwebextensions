@@ -846,6 +846,7 @@ return a JSCValue!"
                            (jsc-class-add-method!
                             class-obj name
                             (lambda* (instance #:rest args)
+                              (g-print "Running the ~s method" name)
                               (make-jsc-promise function args))))
                           (else (jsc-class-add-method! class-obj name function))))
                         ((eq? #:property type)
@@ -866,7 +867,8 @@ return a JSCValue!"
   (let* ((class (jsc-class-register! "Browser" context))
          (constructor (jsc-class-make-constructor class)))
     (jsc-context-value-set! "Browser" constructor context)
-    (jsc-context-value-set! "browser" (make-jsc-object class '()) context)))
+    (jsc-context-value-set! "browser" (make-jsc-object class '()) context)
+    (g-print "Browser injected into ~s" context)))
 
 ;;; ContextMenu and ContextMenuItem
 
@@ -1296,47 +1298,13 @@ Should? always return a pointer to ScriptWorld."
     (g-signal-connect
      world "window-object-cleared"
      (procedure->pointer*
-      (lambda (world page frame)
+      (lambda (w page frame)
         (g-print "Injecting the extension API into ~s world"
-                 (script-world-name world))
-        (let ((context (frame-jsc-context frame world)))
+                 (script-world-name w))
+        (let ((context (frame-jsc-context frame w)))
+          (g-print "Tabs is ~s" (hash-ref *apis* "tabs"))
           (inject-browser context)
-          (jsc-context-value-set!
-           "try_injecting_js_into_a_custom_world"
-           (make-jsc-function
-            #f (lambda ()
-                 (g-print "Callback in!")
-                 (make-jsc-null))
-            context)
-           context)
-          (let ((number 8))
-            ((define-api
-               "test" "Test"
-               (list "prop" #:property
-                     (lambda (instance)
-                       (g-print "Calling getter for prop")
-                       (make-jsc-number number))
-                     (lambda (instance value)
-                       (g-print "Calling setter for prop with ~s" (jsc->scm value))
-                       (set! number (jsc->scm value))
-                       value))
-               (let ((val #f))
-                 (list "prop2" #:property
-                       (lambda (instance)
-                         (g-print "Calling getter for prop2")
-                         (scm->jsc val))
-                       (lambda (instance value)
-                         (g-print "Calling setter for prop2 with ~s" (jsc->scm value))
-                         (set! val (jsc->scm value))
-                         value)))
-               (list "method" #:method
-                     (lambda (instance arg)
-                       (g-print "Calling method with ~s" (jsc->scm arg))
-                       (make-jsc-promise "browser.test.method" (list arg)
-                                         #:context context))))
-             context)
-            ;; ((hash-ref *apis* "tabs") context)
-            )))
+          ((hash-ref *apis* "tabs") context)))
       '(* * *) void))))
 
 (define (we-context web-extension)
