@@ -372,7 +372,8 @@ WARNING: Ensure that SETTER-CALLBACK returns a JSCValue!"
    (procedure->pointer* (lambda (instance)
                           (let ((value (getter-callback instance)))
                             (scm->jsc value))))
-   (procedure->pointer* (or setter-callback
+   (procedure->pointer* (if (procedure? setter-callback)
+                            setter-callback
                             (lambda (instance value)
                               (make-jsc-null))))
    %null-pointer
