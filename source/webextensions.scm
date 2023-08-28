@@ -772,11 +772,7 @@ Sends the message with NAME name and ARGS as content."
         var value = check();
         console.log(\"Got \" + value + \" value\");
         if (value === null) {
-            setTimeout(() => {
-                console.log(\"Timeout fired\");
-                rec(success, failure);
-            },
-                       100);
+            setTimeout(() => rec(success, failure), 10);
         } else {
             if (value.hasOwnProperty(\"error\")) {
                 let error = new Error(value.error);
