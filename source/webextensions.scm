@@ -821,6 +821,7 @@ return a JSCValue!"
   (hash-set!
    *apis* property
    (lambda (context)
+     (g-print "Injecting ~s API into context ~s" property context)
      (let* ((class-obj (jsc-class-register! class context))
             (constructor (jsc-class-make-constructor class-obj)))
        (letrec ((add-methods/properties
@@ -861,6 +862,7 @@ return a JSCValue!"
   (list "create" #:method "browser.tabs.create"))
 
 (define (inject-browser context)
+  (g-print "Injecting browser into ~s" context)
   (let* ((class (jsc-class-register! "Browser" context))
          (constructor (jsc-class-make-constructor class)))
     (jsc-context-value-set! "Browser" constructor context)
@@ -1292,6 +1294,7 @@ Should? always return a pointer to ScriptWorld."
          (extension (make-web-extension% name jsc world)))
     (when (jsc-property? jsc "permissions")
       (we-permissions-set! extension (jsc-property jsc "permissions")))
+    (g-print "Making extension ~s" name)
     (g-signal-connect
      world "window-object-cleared"
      (procedure->pointer*
@@ -1302,7 +1305,8 @@ Should? always return a pointer to ScriptWorld."
           (g-print "Tabs is ~s" (hash-ref *apis* "tabs"))
           (inject-browser context)
           ((hash-ref *apis* "tabs") context)))
-      '(* * *) void))))
+      '(* * *) void))
+    (g-print "Window object cleared callback set")))
 
 (define (we-context web-extension)
   (frame-jsc-context (page-main-frame *page*) (we-world web-extension)))
@@ -1335,12 +1339,7 @@ Should? always return a pointer to ScriptWorld."
          (g-print "Building extension with '~s' name\n" (jsc-property param-jsc "name"))
          (hash-set! *web-extensions* (jsc-property param-jsc "name")
                     (make-web-extension param-jsc)))))
-     (message-reply message)
-     (page-send-message
-      (make-message "hello" "test")
-      (lambda (page reply)
-        (g-print "Got message reply ~s with contents ~s"
-                 (message-name reply) (g-variant-string (message-params reply)))))))
+     (message-reply message)))
   1)
 
 (define (send-request-callback page request redirected-response)
