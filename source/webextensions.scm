@@ -221,15 +221,15 @@ Returns #f outside of them."
   "Returns the JSCValue pointer for CONTEXT."
   ((foreign-fn "jsc_context_get_global_object" '(*) '*) context ))
 
-(define* (jsc-context-evaluate code #:optional (context (jsc-context-get/make)))
+(define* (jsc-context-evaluate% code #:optional (context (jsc-context-get/make)))
   "Evaluate CODE in CONTEXT.
 Returns raw JSCValue resulting from CODE evaluation."
   ((foreign-fn "jsc_context_evaluate" `(* * ,int) '*)
    context (string->pointer* code) -1))
 
-(define* (jsc-context-evaluate* code #:optional (context (jsc-context-get/make)))
+(define* (jsc-context-evaluate code #:optional (context (jsc-context-get/make)))
   "Evaluate CODE in CONTEXT, but return Scheme value."
-  (jsc->scm (jsc-context-evaluate code context)))
+  (jsc->scm (jsc-context-evaluate% code context)))
 
 (define* (jsc-context-value-set! name value #:optional (context (jsc-context-get/make)))
   "Set the NAMEd value in CONTEXT to a VALUE.
@@ -447,7 +447,7 @@ context it belongs to."
                       (destructure (+ 1 idx))))))
     ((foreign-fn "g_strfreev" '(*) void) ffi-props)
     props))
-(define (%jsc-property object property-name)
+(define (jsc-property% object property-name)
   "Get a PROPERTY-NAME-named JSCValue of property from OBJECT.
 
 - PROPERTY-NAME is
@@ -461,7 +461,7 @@ instead."
    object (ensure-index property-name)))
 (define (jsc-property object property-name)
   "Get the Scheme value for PROPERTY-NAME-named property of OBJECT."
-  (jsc->scm (%jsc-property object property-name)))
+  (jsc->scm (jsc-property% object property-name)))
 (define (jsc-property? object property-name)
   (positive?
    ((foreign-fn "jsc_value_object_has_property" '(* *) unsigned-int)
@@ -767,7 +767,7 @@ Sends the message with NAME name and ARGS as content."
            (set! result-obj data))))))
     (jsc-function-call
      ;; Keep in sync with promise.js.
-     (jsc-context-evaluate "function closure (check) {
+     (jsc-context-evaluate% "function closure (check) {
     function rec (success, failure) {
         var value = check();
         console.log(\"Got \" + value + \" value\");
@@ -1056,14 +1056,14 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
       '(* *) void)))
   (hash-map->list (lambda (key value) (cons key value)) *headers*))
 
-(define (%request-headers request)
+(define (request-headers% request)
   "Return a pointer to REQUEST headers (as SoupMessageHeaders structure)."
   ((foreign-fn "webkit_uri_request_get_http_headers" '(*) '*) request))
 (define (request-headers request)
   "Return an alist of headers from REQUEST.
 Alist heads are string names of headers.
 Alist tails are lists of string for values of headers."
-  (parse-soup-headers (%request-headers request)))
+  (parse-soup-headers (request-headers% request)))
 
 ;; TODO: Test whether it works.
 (define* (request-header-set! request name #:optional (value "") append?)
@@ -1071,7 +1071,7 @@ Alist tails are lists of string for values of headers."
 Appends the header if APPEND? or if NAME is not set yet.
 Otherwise replaces NAME value to VALUE."
   (typecheck 'request-header-set! request pointer?)
-  (let* ((headers (%request-headers request))
+  (let* ((headers (request-headers% request))
          (name-ptr (string->pointer* name))
          (value-ptr (string->pointer* value))
          (prev-value (pointer->string*
@@ -1278,7 +1278,7 @@ Should? always return a pointer to ScriptWorld."
 (define *web-extensions* (make-hash-table))
 
 (define-record-type <web-extension>
-  (%make-web-extension name jsc world)
+  (make-web-extension% name jsc world)
   web-extension?
   (name we-name)
   (jsc we-jsc)
@@ -1289,7 +1289,7 @@ Should? always return a pointer to ScriptWorld."
 (define (make-web-extension jsc)
   (let* ((name (jsc-property jsc "name"))
          (world (make-script-world name))
-         (extension (%make-web-extension name jsc world)))
+         (extension (make-web-extension% name jsc world)))
     (when (jsc-property? jsc "permissions")
       (we-permissions-set! extension (jsc-property jsc "permissions")))
     (g-signal-connect
