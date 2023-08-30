@@ -843,6 +843,8 @@ return a JSCValue!"
                           ((string? function)
                            (jsc-class-add-method!
                             class-obj name
+                            ;; FIXME: Methods should not have
+                            ;; optional/rest arguments!!!
                             (lambda* (instance #:rest args)
                               (g-print "Running the ~s method" name)
                               (make-jsc-promise function args))))
