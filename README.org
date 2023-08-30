@@ -1,13 +1,18 @@
 #+TITLE:WebExtensions API support library
 
-Right now, it's just a prototype for loading Scheme-based library into WebKit via WebKitWebExtension infrastructure. Scheme code is
+This library puts Scheme runtime into the WebKitWebExtension infrastructure to make WebExtensions API support easier to implement. Scheme code is
 - injected as a C string,
 - compiled with libguile,
-- and then hooked as callbacks into extension signals
+- and then hooked as callbacks into WebKitWebExtension signals.
 
-Scheme code implements most of the infrastructure reliably enough, but it hasn't been tested against the proper WebExtension example yet.
+  See the [[Detailed Boot]] section below for more details.
 
 * Building
+
+In general, you need to have
+- WebKit (with JSCore and web-extensions library),
+- Glib/Gobject
+- and =pkg-config= (to fetch proper paths for the libraries above).
 
 On Guix, it's enough to:
 #+begin_src sh
@@ -15,10 +20,84 @@ On Guix, it's enough to:
   cp -f webextensions.so /path/to/nyxt/gtk-extensions/
 #+end_src
 
+* Getting Started with Scheme implementation
+
+Install the Emacs =hideshow-mode= and enable it for Scheme files. This way, =source/webextensions.scm= won't look as intimidating and huge.
+
+The code in =source/webextensions.scm= loosely follows typical Scheme conventions:
+- Constructors are prefixed by =make-=.
+- Predicates are suffixed by =?=.
+- State-modifying functions are suffixed by =!=.
+- A slight deviation: internal/raw-data/C-ish functions are suffixed (instead of prefixed) by =%= (to make sure Geiser auto-completes them properly).
+
+You better read =source/webextensions.scm= from the bottom, because that's where toplevel interaction (page tracking =page-created-callback=, message processing =message-received-callback=, request processing =send-request-callback=) happens. See the ";;; Entry point and signal processors" comment for the exact place.
+
+These use APIs like =request-*= and =mesage-*= processing the WebKitWebExtension objects.
+
+WebExtensions themselves are built on top of JSCore (";;; JSCore bindings"), the library for JS contexts (";; JSCContext") and values (";; JSCValue") interaction. Most of the functions there are prefixed with =jsc=, except for constructors (see above, =make-=).
+
+* Detailed Boot
+
+To add more details to how this library works and where to start understanding it, here's a full-ish breakdown of how it works:
+- Build-time:
+  - GNU m4 macro processor inserts Scheme code into a huge literal string in the C source [[./wrapper.in]]/wrapper.c.
+  - GCC/Clang (via [[./makefile][Makefile]]) compiles and links this C file gets webextensions.so.
+- WebKitGTK loads the webextensions.so shared library.
+- WebKitGTK runs the =webkit_web_extension_initialize= functions.
+- Scheme code gets evaluated and ran:
+  - Scheme =entry-webextensions= function is called.
+  - =entry-webextensions= :: It connects page creation message to =page-created-callback=.
+  - =page-created-callback= :: Connects
+    - =user-message-received= signal :: to =message-received-callback= function.
+    - and =send-request= signal :: to =send-request-callback= function.
+
+Now, most of this library substance happens in the =message-received-callback=:
+- =message-received-callback= gets a =WebKitUserMessage= object with =message-name= string and =GVariant= =message-params=.
+- The name is dispatched over different message names.
+  - ATM, it's only =addExtension= message. But that's the main one anyway.
+- If it's an =addExtension= message sent by the browser, then build the extension:
+  - Call =make-web-extension= with the parameters of the message (manifest.json of the extension).
+    - (Unused at the moment) Set the extension permissions from the manifest.
+    - Create a =ScriptWorld= with the name matching the one of the extension.
+    - Connect this world's =window-object-cleared= signal to an API-injecting callback.
+      - =window-object-cleared= is a signal that basically fires when JavaScript world is updated. This usually happens when a page is reloaded or a new one gets open, or some iframe refreshes itself.
+        - So if this signal is connected to late, then it might only fire on next page reload/navigation.
+    - In =window-object-cleared=, callback gets the =JSCContext= of the frame (main or iframe) callback is invoked for.
+    - The context is used to add JS APIs for WebExtensions.
+      - First, =inject-browser= creates a =browser= object.
+      - Then, functions in =*apis*= (defined via =define-api=) are called against the context with created =browser= object.
+      - FIXME: Something goes wrong and browser/APIs are not injected properly.
+
+=define-api= is the main JS API creation thing. It defines:
+- A class matching the API.
+- A =browser= property it's instantiated into.
+- And a set of properties, defined as
+#+begin_src scheme
+  (list "NAME" #:property
+        (lambda (instance) ...)
+        (lambda (instance val) (set! ...)))
+#+end_src
+- And methods, defined as:
+#+begin_src scheme
+  ;; Shortcut for promise-sending methods, basically the same as:
+  ;; (list "create" #:method (lambda* (instance #:rest args)
+  ;;                           (make-jsc-promise "browser.tabs.create" args)))
+  (list "create" #:method "browser.tabs.create")
+  ;; Or
+  (list "create" #:method (lambda (instance arg1 arg2) ...))
+#+end_src
+
 
 * To Do:
 - Scheme implementation:
   - [X] Complete JSCore support.
   - [X] Add WebKitWebExtension support.
-  - [ ] Glib/GTK primitives, if necessary.
+  - [X] Glib/GTK primitives, if necessary.
+  - [X] Transferring extension<->browser messages.
+  - [X] Building asynchronous APIs.
+    - [ ] Test against simplest extensions with the minimum set of async APIs.
+- Support for manifest.json keys:
+  - [X] name.
+  - [ ] permissions.
+  - ...
 - Common Lisp implementation?
