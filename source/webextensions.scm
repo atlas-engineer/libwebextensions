@@ -867,7 +867,7 @@ procedure) return a JSCValue!"
 
 (define-api "tabs" "Tabs"
   (list "TAB_ID_NONE" #:property (lambda (instance) -1))
-  (list "create" #:method "browser.tabs.create"))
+  (list "create" #:method "browser.tabs.create" 2))
 
 (define (inject-browser context)
   (g-print "Injecting browser into ~s" context)
