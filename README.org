@@ -7,7 +7,7 @@ This library puts Scheme runtime into the WebKitWebExtension infrastructure to m
 
   See the [[Detailed Boot]] section below for more details.
 
-* Building
+* Building and Running
 
 In general, you need to have
 - WebKit (with JSCore and web-extensions library),
@@ -19,6 +19,8 @@ On Guix, it's enough to:
   guix shell pkg-config glib gobject-introspection webkitgtk guile -- make
   cp -f webextensions.so /path/to/nyxt/gtk-extensions/
 #+end_src
+
+Run Nyxt, check whether it crashes (😃), and run the snippets from [[./nyxt-side-tests.lisp]]. Fire the "addExtension" signal (with at least ={"name": "name"}=) first, and then check the world-internal (for =name= world) variables and methods. It should not crash, at least. If it does (or if the returned values are wrong), check shell/inferior-lisp output for what exactly errors out and debug it (likely, with =g-print= printing to isolate the exact crashing part of code).
 
 * Getting Started with Scheme implementation
 
