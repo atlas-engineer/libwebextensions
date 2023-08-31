@@ -328,8 +328,10 @@ NAME via `jsc-context-value-set!' to become usable."
   "Add a NAMEd method to CLASS object.
 
 CALLBACK should be a JSCValue-returning function with minimum one
-argument—the instance of CLASS. Keyword/rest arguments are not
-supported."
+argument—the instance of CLASS. Keyword arguments are not
+supported. NUMBER-OF-ARGS (optional, defaults to CALLBACK maximum arg
+number) mandates how much arguments CALLBACK has on the JavaScript
+side."
   (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*))))
     (apply
      (foreign-fn "jsc_class_add_method"
@@ -806,15 +808,16 @@ object (i.e. \"browser.bookmarks\" for \"bookmarks\" PROPERTY).
 
 CLASS is the string name of the class API is generated from.
 
-METHODS is a list of (NAME TYPE FUNCTION &OPTIONAL SETTER-FUNCTION),
+METHODS is a list of (NAME TYPE FUNCTION &OPTIONAL SETTER-OR-NARGS),
 where TYPE is one of:
-- #:PROPERTY---FUNCTION is a getter, SETTER-FUNCTION is a setter.
-  - In case SETTER-FUNCTION is not provided, generate dummy setter.
+- #:PROPERTY---FUNCTION is a getter, SETTER-OR-NARGS is a setter.
+  - In case SETTER-OR-NARGS is not provided, generate dummy setter.
   - In case FUNCTION is an atom, create getter returning the atom.
-- #:METHOD---method acting on the instance of CLASS.
+- #:METHOD---FUNCTION acting on the instance of CLASS. Set the number
+  of args for FUNCTION to be SETTER-OR-NARGS, when provided.
 
-WARNING: Ensure that FUNCTION and SETTER-FUNCTION (when present)
-return a JSCValue!"
+WARNING: Ensure that FUNCTION and SETTER-OR-NARGS (when present and
+procedure) return a JSCValue!"
   (typecheck 'define-api property string?)
   (typecheck 'define-api class string?)
   (hash-set!
