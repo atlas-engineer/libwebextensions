@@ -286,7 +286,7 @@ Inherits from PARENT-CLASS (JSCClass pointer), if any."
   "Returns raw JSCClass pointer to the parent of CLASS."
   ((foreign-fn "jsc_class_get_parent" '(*) '*) class))
 
-(define* (jsc-class-make-constructor class #:optional (name %null-pointer) callback)
+(define* (jsc-class-make-constructor class #:key (name %null-pointer) callback (number-of-args (procedure-maximum-arity callback)))
   "Create a constructor for CLASS with CALLBACK called on object initialization.
 
 If NAME is not provided, use CLASS name.
@@ -324,14 +324,13 @@ NAME via `jsc-context-value-set!' to become usable."
 (define* (jsc-constructor-call constructor #:rest args)
   (apply-with-args "jsc_value_constructor_call" (list constructor) args))
 
-(define* (jsc-class-add-method! class name callback)
+(define* (jsc-class-add-method! class name callback #:key (number-of-args (procedure-maximum-arity callback)))
   "Add a NAMEd method to CLASS object.
 
 CALLBACK should be a JSCValue-returning function with minimum one
 argument—the instance of CLASS. Keyword/rest arguments are not
 supported."
-  (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*)))
-        (number-of-args (procedure-maximum-arity callback)))
+  (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*))))
     (apply
      (foreign-fn "jsc_class_add_method"
                  (append `(* * * * * * ,unsigned-int)
@@ -546,13 +545,13 @@ PARENT-OR-NAME is either a JSCClass object or a string name thereof."
 (define* (jsc-object-call-method object name #:rest args)
   (apply-with-args "jsc_value_object_invoke_method" (list object (string->pointer* name)) args))
 
-(define* (make-jsc-function name callback #:optional (context (jsc-context-get/make)))
+(define* (make-jsc-function
+          name callback #:key (context (jsc-context-get/make)) (number-of-args (procedure-maximum-arity callback)))
   "Create a function with CALLBACK and bind it to NAME.
 If NAME is #f or NULL, create an anonymous function.
 Implies that CALLBACK returns a valid JSCValue. If it doesn't, try to
 convert it with `scm->jsc'."
-  (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*)))
-        (number-of-args (procedure-maximum-arity callback)))
+  (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*))))
     (apply
      (foreign-fn "jsc_value_new_function"
                  (append `(* * * * * * ,unsigned-int)
@@ -653,7 +652,7 @@ already and is returned."
          (not (list? (cdr (car object)))))
     (make-jsc-object %null-pointer object context))
    ((list? object) (make-jsc-array object context))
-   ((procedure? object) (make-jsc-function #f object context))))
+   ((procedure? object) (make-jsc-function #f object #:context context))))
 
 (define (jsc-type-of object)
   (cond
@@ -789,7 +788,7 @@ Sends the message with NAME name and ARGS as content."
            (if result-obj
                result-obj
                (make-jsc-null context)))
-      context))))
+      #:context context))))
 
 ;;; Webkit extensions API
 
@@ -831,8 +830,9 @@ return a JSCValue!"
                             (name (list-ref meth/prop 0))
                             (type (list-ref meth/prop 1))
                             (function (list-ref meth/prop 2))
-                            (setter (when (= 4 (length meth/prop))
-                                      (list-ref meth/prop 3))))
+                            (setter-or-number-of-args
+                             (when (= 4 (length meth/prop))
+                               (list-ref meth/prop 3))))
                        (typecheck 'define-api/add-methods/properties name
                                   string? pointer?)
                        (typecheck 'define-api/add-methods/properties function
@@ -847,10 +847,13 @@ return a JSCValue!"
                             ;; optional/rest arguments!!!
                             (lambda* (instance #:rest args)
                               (g-print "Running the ~s method" name)
-                              (make-jsc-promise function args))))
-                          (else (jsc-class-add-method! class-obj name function))))
+                              (make-jsc-promise function args))
+                            #:number-of-args (or setter-or-number-of-args 1)))
+                          (else (jsc-class-add-method!
+                                 class-obj name function
+                                 #:number-of-args (or setter-or-number-of-args 1)))))
                         ((eq? #:property type)
-                         (jsc-class-add-property! class-obj name function setter)))
+                         (jsc-class-add-property! class-obj name function setter-or-number-of-args)))
                        (add-methods/properties (cdr meths/props)))))))
          (add-methods/properties methods)
          (jsc-context-value-set! class constructor context)
