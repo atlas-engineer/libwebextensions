@@ -813,7 +813,8 @@ where TYPE is one of:
   - In case SETTER-OR-NARGS is not provided, generate dummy setter.
   - In case FUNCTION is an atom, create getter returning the atom.
 - #:METHOD---FUNCTION acting on the instance of CLASS. Set the number
-  of args for FUNCTION to be SETTER-OR-NARGS, when provided.
+  of args (including the class instance!) for FUNCTION to be
+  SETTER-OR-NARGS, when provided.
 
 WARNING: Ensure that FUNCTION and SETTER-OR-NARGS (when present and
 procedure) return a JSCValue!"
