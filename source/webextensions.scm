@@ -648,6 +648,7 @@ already and is returned."
    ((vector? object) (make-jsc-array object context))
    ;; Dotted alist
    ((and (list? object)
+         (not (null-list? object))
          (list? (car object))
          (not (list? (cdr (car object)))))
     (make-jsc-object %null-pointer object context))
