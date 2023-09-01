@@ -286,7 +286,8 @@ Inherits from PARENT-CLASS (JSCClass pointer), if any."
   "Returns raw JSCClass pointer to the parent of CLASS."
   ((foreign-fn "jsc_class_get_parent" '(*) '*) class))
 
-(define* (jsc-class-make-constructor class #:key (name %null-pointer) callback (number-of-args (procedure-maximum-arity callback)))
+(define* (jsc-class-make-constructor class #:key (name %null-pointer) (callback #f)
+                                     (number-of-args (if callback (procedure-maximum-arity callback) 0)))
   "Create a constructor for CLASS with CALLBACK called on object initialization.
 
 If NAME is not provided, use CLASS name.
@@ -300,10 +301,7 @@ function doing nothing.
 
 NOTE: The returned JSCValue pointer should be set to a global value of
 NAME via `jsc-context-value-set!' to become usable."
-  (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*)))
-        (number-of-args (if callback
-                            (procedure-maximum-arity callback)
-                            0)))
+  (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*))))
     (apply
      (foreign-fn "jsc_class_add_constructor"
                  (append `(* * * * * * ,unsigned-int)
