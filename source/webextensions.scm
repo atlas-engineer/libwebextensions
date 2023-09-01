@@ -841,20 +841,17 @@ procedure) return a JSCValue!"
                        (typecheck 'define-api/add-methods/properties function
                                   string? procedure? pointer?)
                        (cond
+                        ((and (eq? #:method type) (string? function))
+                         (jsc-class-add-method!
+                          class-obj name
+                          ;; FIXME: Methods should not have
+                          ;; optional/rest arguments!!!
+                          (lambda* (instance #:rest args)
+                            (g-print "Running the ~s method" name)
+                            (make-jsc-promise function args))
+                          #:number-of-args (or setter-or-number-of-args 1)))
                         ((eq? #:method type)
-                         (cond
-                          ((string? function)
-                           (jsc-class-add-method!
-                            class-obj name
-                            ;; FIXME: Methods should not have
-                            ;; optional/rest arguments!!!
-                            (lambda* (instance #:rest args)
-                              (g-print "Running the ~s method" name)
-                              (make-jsc-promise function args))
-                            #:number-of-args (or setter-or-number-of-args 1)))
-                          (else (jsc-class-add-method!
-                                 class-obj name function
-                                 #:number-of-args (or setter-or-number-of-args 1)))))
+                         (jsc-class-add-method! class-obj name function #:number-of-args (or setter-or-number-of-args 1)))
                         ((eq? #:property type)
                          (jsc-class-add-property! class-obj name function setter-or-number-of-args)))
                        (add-methods/properties (cdr meths/props)))))))
