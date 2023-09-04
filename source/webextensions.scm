@@ -826,6 +826,7 @@ procedure) return a JSCValue!"
      (g-print "Injecting ~s API into context ~s" property context)
      (let* ((class-obj (jsc-class-register! class context))
             (constructor (jsc-class-make-constructor class-obj)))
+       (g-print "Constructor for ~s created" class)
        (letrec ((add-methods/properties
                  (lambda (meths/props)
                    (unless (null? meths/props)
@@ -840,6 +841,9 @@ procedure) return a JSCValue!"
                                   string? pointer?)
                        (typecheck 'define-api/add-methods/properties function
                                   string? procedure? pointer?)
+                       (if (eq? #:property type)
+                           (g-print "Adding ~s property" name)
+                           (g-print "Adding ~s method" name))
                        (cond
                         ((and (eq? #:method type) (string? function))
                          (jsc-class-add-method!
@@ -854,6 +858,9 @@ procedure) return a JSCValue!"
                          (jsc-class-add-method! class-obj name function #:number-of-args (or setter-or-number-of-args 1)))
                         ((eq? #:property type)
                          (jsc-class-add-property! class-obj name function setter-or-number-of-args)))
+                       (if (eq? #:property type)
+                           (g-print "Added ~s property" name)
+                           (g-print "Added ~s method" name))
                        (add-methods/properties (cdr meths/props)))))))
          (add-methods/properties methods)
          (jsc-context-value-set! class constructor context)
