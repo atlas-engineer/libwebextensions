@@ -1230,6 +1230,9 @@ Should? always return a pointer to ScriptWorld."
   ((foreign-fn "webkit_script_world_get_default" '() '*)))
 
 (define* (make-script-world #:optional name)
+  "Creates a new ScriptWorld with NAME.
+
+NOTE: the set of allowed characters in NAME is uncertain."
   (if name
       ((foreign-fn "webkit_script_world_new_with_name" '(*) '*)
        (string->pointer* name))
