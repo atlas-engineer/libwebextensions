@@ -659,51 +659,20 @@ already and is returned."
   (cond
    ;; If it's not a pointer, then it's a Scheme value already. Return
    ;; it as is.
-   ((or (not (pointer? object))
-        (begin
-          (g-print "Checking ~s for non pointer" object)
-          #f)) #:unknown)
-   ((or (zero? ((foreign-fn "g_type_check_instance_is_a" `(* ,unsigned-int) unsigned-int)
-                object ((foreign-fn "jsc_value_get_type" '() unsigned-int))))
-        (begin
-          (g-print "Checking ~s for JSCValue" object)
-          #f))
+   ((not (pointer? object)) #:unknown)
+   ((zero? ((foreign-fn "g_type_check_instance_is_a"
+                        `(* ,unsigned-int) unsigned-int)
+            object ((foreign-fn "jsc_value_get_type" '() unsigned-int))))
     #:unknown)
-   ((or (jsc-null? object)
-        (begin
-          (g-print "Checking for null")
-          #f)) #:null)
-   ((or (jsc-undefined? object)
-        (begin
-          (g-print "Checking for undefined")
-          #f)) #:undefined)
-   ((or (jsc-boolean? object)
-        (begin
-          (g-print "Checking for boolean")
-          #f)) #:boolean)
-   ((or (jsc-string? object)
-        (begin
-          (g-print "Checking for string")
-          #f)) #:string)
-   ((or (jsc-number? object)
-        (begin
-          (g-print "Checking for number")
-          #f)) #:number)
-   ((or (jsc-array? object)
-        (begin
-          (g-print "Checking for array")
-          #f)) #:array)
-   ((or (jsc-function? object)
-        (begin
-          (g-print "Checking for function")
-          #f)) #:function)
-   ((or (jsc-object? object)
-        (begin
-          (g-print "Checking for object")
-          #f)) #:object)
-   (else
-    (g-print "It's neither")
-    #:unknown)))
+   ((jsc-null? object) #:null)
+   ((jsc-undefined? object) #:undefined)
+   ((jsc-boolean? object) #:boolean)
+   ((jsc-string? object) #:string)
+   ((jsc-number? object) #:number)
+   ((jsc-array? object) #:array)
+   ((jsc-function? object) #:function)
+   ((jsc-object? object) #:object)
+   (else #:unknown)))
 
 (define* (jsc->scm object)
   "Convert JSCValue OBJECT to a Scheme value.
