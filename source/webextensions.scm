@@ -1278,19 +1278,24 @@ NOTE: the set of allowed characters in NAME is uncertain."
          (extension (make-web-extension% name jsc world)))
     (when (jsc-property? jsc "permissions")
       (we-permissions-set! extension (jsc-property jsc "permissions")))
-    (g-print "Making extension ~s" name)
-    (g-signal-connect
-     world "window-object-cleared"
-     (procedure->pointer*
-      (lambda (w page frame)
-        (g-print "Injecting the extension API into ~s world"
-                 (script-world-name w))
-        (let ((context (frame-jsc-context frame w)))
-          (g-print "Tabs is ~s" (hash-ref *apis* "tabs"))
-          (inject-browser context)
-          ((hash-ref *apis* "tabs") context)))
-      '(* * *) void))
-    (g-print "Window object cleared callback set")))
+    (let ((inject-frame-and-world
+           (lambda (f w)
+             (g-print "Injecting the extension API into ~s world"
+                      (script-world-name w))
+             (let ((context (frame-jsc-context f w)))
+               (g-print "Tabs is ~s" (hash-ref *apis* "tabs"))
+               (inject-browser context)
+               ((hash-ref *apis* "tabs") context)))))
+      (g-print "Making extension ~s" name)
+      (inject-frame-and-world (page-main-frame *page*) world)
+      (g-print "APIs injected into the current context")
+      (g-signal-connect
+       world "window-object-cleared"
+       (procedure->pointer*
+        (lambda (w page frame)
+          (inject-frame-and-world frame w))
+        '(* * *) void))
+      (g-print "Window object cleared callback set"))))
 
 (define (we-context web-extension)
   (frame-jsc-context (page-main-frame *page*) (we-world web-extension)))
@@ -1318,9 +1323,9 @@ NOTE: the set of allowed characters in NAME is uncertain."
             (param-jsc (json->jsc param-string)))
        (g-print "Params are ~s" param-string)
        (cond
-        ((and (string=? (message-name message) "addExtension")
-              (not (hash-ref *web-extensions* (jsc-property param-jsc "name"))))
+        ((string=? (message-name message) "addExtension")
          (g-print "Building extension with '~s' name\n" (jsc-property param-jsc "name"))
+         ;; TODO: de-inject the extension.
          (hash-set! *web-extensions* (jsc-property param-jsc "name")
                     (make-web-extension param-jsc)))))
      (message-reply message)))
