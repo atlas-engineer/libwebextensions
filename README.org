@@ -30,7 +30,7 @@ The code in =source/webextensions.scm= loosely follows typical Scheme convention
 - Constructors are prefixed by =make-=.
 - Predicates are suffixed by =?=.
 - State-modifying functions are suffixed by =!=.
-- A slight deviation: internal/raw-data/C-ish functions are suffixed (instead of prefixed) by =%= (to make sure Geiser auto-completes them properly).
+- A slight deviation: internal/raw-data/C-ish functions are suffixed (instead of prefixed) by =%= to make sure Geiser auto-completes them properly.
 
 You better read =source/webextensions.scm= from the bottom, because that's where toplevel interaction (page tracking =page-created-callback=, message processing =message-received-callback=, request processing =send-request-callback=) happens. See the ";;; Entry point and signal processors" comment for the exact place.
 
