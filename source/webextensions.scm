@@ -544,6 +544,14 @@ PARENT-OR-NAME is either a JSCClass object or a string name thereof."
                        parent-or-name)))))
 (define* (jsc-object-call-method object name #:rest args)
   (apply-with-args "jsc_value_object_invoke_method" (list object (string->pointer* name)) args))
+(define (jsc->alist obj)
+  "Turn OBJ (a JS object) into an alist of properties."
+  (let destructure ((properties (jsc-properties obj)))
+    (if (null-list? properties)
+	'()
+	(append (cons (cons (car properties)
+			    (jsc-property obj (car properties)))
+		      (destructure (cdr properties)))))))
 
 (define* (make-jsc-function
           name callback #:key (context (jsc-context-get/make)) (number-of-args (procedure-maximum-arity callback)))
@@ -687,7 +695,8 @@ Does not support objects and functions yet."
    ((#:string) (jsc->string object))
    ((#:number) (jsc->number object))
    ((#:array) (jsc->list object))
-   (else (error "jsc->scm: object conversion not implemented yet"))))
+   ((#:object) (jsc->alist object))
+   (else (error "Cannot convert " object " to a Scheme value"))))
 
 ;; Scheme types: boolean?, pair?, symbol?, number?, char?, string?, vector?, port?, procedure?
 ;; Guile ones: hash-table? and objects (any predicate for those? record? maybe)
@@ -1324,7 +1333,9 @@ NOTE: the set of allowed characters in NAME is uncertain."
        (g-print "Params are ~s" param-string)
        (cond
         ((string=? (message-name message) "addExtension")
-         (g-print "Building extension with '~s' name" (jsc-property param-jsc "name"))
+         (g-print "Building extension with '~s' name and ~s contents"
+		  (jsc-property param-jsc "name")
+		  (jsc->alist param-jsc))
          ;; TODO: de-inject the extension.
          (hash-set! *web-extensions* (jsc-property param-jsc "name")
                     (make-web-extension param-jsc)))))
