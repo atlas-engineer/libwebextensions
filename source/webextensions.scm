@@ -504,7 +504,7 @@ JSC value pointers."
 (define (jsc->list object)
   "Convert OBJECT JSCValue array into a Scheme list."
   (let rec ((idx 0))
-    (g-print "Running jsc->lis")
+    (g-print "Running jsc->list")
     (if (jsc-property? object idx)
         (begin
           (g-print "Getting property ~s" idx)
