@@ -728,7 +728,7 @@ Sends the message with NAME name and ARGS as content."
           ((not (or (jsc-object? data)
                     (jsc-null? data)))
            (error (format
-                   #f "Not a JS object: ~s (~s), cannot pass it to Promise callback\n"
+                   #f "Not a JS object: ~s (~s), cannot pass it to Promise callback"
                    data (jsc-type-of data))))
           ;; If there was an error, then browser
           ;; returns {"error" : "error message"}
@@ -1306,7 +1306,7 @@ NOTE: the set of allowed characters in NAME is uncertain."
   (with-exception-handler
       (lambda (exn)
         (format (current-error-port)
-                "Uncaught exception: ~s\n" exn)
+                "Uncaught exception: ~s" exn)
         (backtrace)
         #f)
     thunk
@@ -1324,7 +1324,7 @@ NOTE: the set of allowed characters in NAME is uncertain."
        (g-print "Params are ~s" param-string)
        (cond
         ((string=? (message-name message) "addExtension")
-         (g-print "Building extension with '~s' name\n" (jsc-property param-jsc "name"))
+         (g-print "Building extension with '~s' name" (jsc-property param-jsc "name"))
          ;; TODO: de-inject the extension.
          (hash-set! *web-extensions* (jsc-property param-jsc "name")
                     (make-web-extension param-jsc)))))
