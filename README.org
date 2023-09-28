@@ -104,6 +104,7 @@ Now, most of this library substance happens in the =message-received-callback=:
   (list "create" #:method (lambda (instance arg1 arg2) ...))
 #+end_src
 
+# TODO: Add and document events.
 
 * To Do:
 - Scheme implementation:
