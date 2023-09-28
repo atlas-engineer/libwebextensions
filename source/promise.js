@@ -17,7 +17,12 @@ function closure (check) {
                 failure(error);
             } else if (value.hasOwnProperty("result")) {
                 success(value.result);
-            }
+            } else {
+		let mismatch = new Error("Value passed to Promise callback is malformed: "
+				       + value
+				       + " and missing result/error field.");
+		failure(mismatch);
+	    }
         }
     }
     return new Promise(rec);
