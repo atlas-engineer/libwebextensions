@@ -22,6 +22,21 @@ On Guix, it's enough to:
 
 Run Nyxt, check whether it crashes (😃), and run the snippets from [[./nyxt-side-tests.lisp]]. Fire the "addExtension" signal (with at least ={"name": "name"}=) first, and then check the world-internal (for =name= world) variables and methods. It should not crash, at least. If it does (or if the returned values are wrong), check shell/inferior-lisp output for what exactly errors out and debug it (likely, with =g-print= printing to isolate the exact crashing part of code).
 
+To test real extensions, clone the webextensions-examples repo:
+#+begin_src sh
+  # The path doesn't matter: you set it in your config.
+  git clone https://github.com/mdn/webextensions-example /path/for/examples
+#+end_src
+
+Then load the extension in Nyxt config:
+#+begin_src lisp
+  ;; Replace the $EXTENSION with the name and directory (containing
+  ;; manifest.json) for the example.
+  (nyxt/web-extensions:load-web-extension $EXTENSION #p"/path/for/examples/$EXTENSION/")
+  (define-configuration web-buffer
+    ((default-modes (cons '$EXTENSION %slot-value%))))
+#+end_src
+
 * Getting Started with Scheme implementation
 
 Install the Emacs =hideshow-mode= and enable it for Scheme files. This way, =source/webextensions.scm= won't look as intimidating and huge.
