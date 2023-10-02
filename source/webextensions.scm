@@ -860,6 +860,9 @@ procedure) return a JSCValue!"
   (list "TAB_ID_NONE" #:property (lambda (instance) -1))
   (list "create" #:method "tabs.create" 1))
 
+(define-api "runtime" "Runtime"
+  (list "getPlatformInfo" #:method "runtime.getPlatformInfo" 0))
+
 (define (inject-browser context)
   (g-print "Injecting browser into ~s" context)
   (let* ((class (jsc-class-register! "Browser" context))
@@ -1303,7 +1306,8 @@ NOTE: the set of allowed characters in NAME is uncertain."
              (let ((context (frame-jsc-context f w)))
                (g-print "Tabs is ~s" (hash-ref *apis* "tabs"))
                (inject-browser context)
-               ((hash-ref *apis* "tabs") context)))))
+               ((hash-ref *apis* "tabs") context)
+	       ((hash-ref *apis* "runtime") context)))))
       (g-print "Making extension ~s" name)
       (inject-frame-and-world (page-main-frame *page*) world)
       (g-print "APIs injected into the current context")
