@@ -1299,6 +1299,7 @@ NOTE: the set of allowed characters in NAME is uncertain."
          (extension (make-web-extension% name jsc world)))
     (when (jsc-property? jsc "permissions")
       (we-permissions-set! extension (jsc-property jsc "permissions")))
+    (hash-set! *web-extensions* name extension)
     (let ((inject-frame-and-world
            (lambda (f w)
              (g-print "Injecting the extension API into ~s world"
