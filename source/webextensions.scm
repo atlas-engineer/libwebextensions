@@ -800,8 +800,8 @@ where TYPE is one of:
   - In case SETTER-OR-NARGS is not provided, generate dummy setter.
   - In case FUNCTION is an atom, create getter returning the atom.
 - #:METHOD---FUNCTION acting on the instance of CLASS. Set the number
-  of args (including the class instance!) for FUNCTION to be
-  SETTER-OR-NARGS, when provided.
+  of args for FUNCTION to be SETTER-OR-NARGS + 1 (instance argument),
+  when provided.
 
 WARNING: Ensure that FUNCTION and SETTER-OR-NARGS (when present and
 procedure) return a JSCValue!"
@@ -840,7 +840,7 @@ procedure) return a JSCValue!"
                           (lambda* (instance #:rest args)
                             (g-print "Running the ~s method" name)
                             (make-jsc-promise function args))
-                          #:number-of-args (or setter-or-number-of-args 1)))
+                          #:number-of-args (+ 1 (or setter-or-number-of-args 0))))
                         ((eq? #:method type)
                          (jsc-class-add-method! class-obj name function #:number-of-args (or setter-or-number-of-args 1)))
                         ((eq? #:property type)
@@ -858,7 +858,7 @@ procedure) return a JSCValue!"
 
 (define-api "tabs" "Tabs"
   (list "TAB_ID_NONE" #:property (lambda (instance) -1))
-  (list "create" #:method "browser.tabs.create" 2))
+  (list "create" #:method "tabs.create" 1))
 
 (define (inject-browser context)
   (g-print "Injecting browser into ~s" context)
