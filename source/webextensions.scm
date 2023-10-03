@@ -1306,6 +1306,10 @@ NOTE: the set of allowed characters in NAME is uncertain."
                       (script-world-name w))
              (let ((context (frame-jsc-context f w)))
                (g-print "Tabs is ~s" (hash-ref *apis* "tabs"))
+	       ;; This is to identify which extension the context
+	       ;; belongs to. Otherwise it's almost impossible to find
+	       ;; the extension given the context.
+	       (jsc-context-value-set! "EXTENSION" name context)
                (inject-browser context)
                ((hash-ref *apis* "tabs") context)
 	       ((hash-ref *apis* "runtime") context)))))
