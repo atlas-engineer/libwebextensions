@@ -246,10 +246,14 @@ VALUE can be a Scheme value or a pointer to JSCValue."
   "Clear the last raised exception."
   ((foreign-fn "jsc_context_clear_exception" '(*) void) context))
 
-(define* (jsc-context-value name #:optional (context (jsc-context-get/make)))
+(define* (jsc-context-value% name #:optional (context (jsc-context-get/make)))
   "Returns the JSCValue bound to NAME in CONTEXT."
   ((foreign-fn "jsc_context_get_value" '(* *) '*)
    context (string->pointer* name)))
+
+(define* (jsc-context-value name #:optional (context (jsc-context-get/make)))
+  "Returns the Scheme value for value bound to NAME in CONTEXT."
+  (jsc->scm (jsc-context-value% name context)))
 
 (define* (jsc-class-register!
           name #:optional (context (jsc-context-get/make)) (parent-class %null-pointer))
@@ -719,7 +723,7 @@ and leads to weird behaviors."
 (define* (make-jsc-error message #:optional (context (jsc-context-get/make)))
   "Create a JS error with MESSAGE."
   (jsc-constructor-call
-   (jsc-context-value "Error" context)
+   (jsc-context-value% "Error" context)
    (scm->jsc message)))
 
 (define* (make-jsc-promise name args #:key (context (jsc-context-get/make)))
@@ -852,7 +856,7 @@ procedure) return a JSCValue!"
          (add-methods/properties methods)
          (jsc-context-value-set! class constructor context)
          (jsc-property-set!
-          (jsc-context-value "browser" context)
+          (jsc-context-value% "browser" context)
           property
           (jsc-constructor-call constructor)))))))
 
