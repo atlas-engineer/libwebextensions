@@ -861,7 +861,8 @@ procedure) return a JSCValue!"
   (list "create" #:method "browser.tabs.create" 2))
 
 (define-api "runtime" "Runtime"
-  (list "getPlatformInfo" #:method "runtime.getPlatformInfo" 1))
+  (list "getPlatformInfo" #:method "runtime.getPlatformInfo" 1)
+  (list "getBrowserInfo" #:method "runtime.getBrowserInfo" 1))
 
 (define (inject-browser context)
   (g-print "Injecting browser into ~s" context)
