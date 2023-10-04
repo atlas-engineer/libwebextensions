@@ -1332,6 +1332,9 @@ NOTE: the set of allowed characters in NAME is uncertain."
 (define (we-context web-extension)
   (frame-jsc-context (page-main-frame *page*) (we-world web-extension)))
 
+(define (context->web-extension context)
+  (hash-ref *web-extensions* (jsc-context-value "EXTENSION" context)))
+
 ;;; Entry point and signal processors
 
 (define (catch-all thunk)
