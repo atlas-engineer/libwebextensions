@@ -862,7 +862,8 @@ procedure) return a JSCValue!"
 
 (define-api "tabs" "Tabs"
   (list "TAB_ID_NONE" #:property (lambda (instance) -1))
-  (list "create" #:method "browser.tabs.create" 2))
+  (list "create" #:method "tabs.create" 2)
+  (list "query" #:method "tabs.query" 2))
 
 (define-api "runtime" "Runtime"
   (list "getPlatformInfo" #:method "runtime.getPlatformInfo" 1)
