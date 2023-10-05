@@ -1396,10 +1396,10 @@ NOTE: the set of allowed characters in NAME is uncertain."
       (procedure->pointer*
        message-received-callback '(* *) unsigned-int))
      (g-print "User message handler installed!")
-     (g-signal-connect
-      page "send-request"
-      (procedure->pointer*
-       send-request-callback '(* * *) unsigned-int))
+     ;; (g-signal-connect
+     ;;  page "send-request"
+     ;;  (procedure->pointer*
+     ;;   send-request-callback '(* * *) unsigned-int))
      (g-print "Request handler installed!"))))
 
 (define (entry-webextensions extension-ptr)
