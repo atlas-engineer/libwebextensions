@@ -879,6 +879,9 @@ procedure) return a JSCValue!"
   (list "getPlatformInfo" #:method "runtime.getPlatformInfo" 1)
   (list "getBrowserInfo" #:method "runtime.getBrowserInfo" 1))
 
+(define-api "management" "Management"
+  (list "getSelf" #:method "management.getSelf" 1))
+
 (define (inject-browser context)
   (g-print "Injecting browser into ~s" context)
   (let* ((class (jsc-class-register! "Browser" context))
