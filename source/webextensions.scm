@@ -863,6 +863,9 @@ procedure) return a JSCValue!"
 (define-api "tabs" "Tabs"
   (list "TAB_ID_NONE" #:property (lambda (instance) -1))
   (list "create" #:method "tabs.create" 2)
+  ;; tabs.get, tabs.getAllInWindow, tabs.getCurrent, tabs.getSelected
+  ;; are all subsets of tabs.query. Any way to call tabs.query and
+  ;; post-process the result instead of spawning new messages?
   (list "query" #:method "tabs.query" 2))
 
 (define-api "runtime" "Runtime"
