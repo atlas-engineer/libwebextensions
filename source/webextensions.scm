@@ -843,7 +843,7 @@ procedure) return a JSCValue!"
                           ;; optional/rest arguments!!!
                           (lambda* (instance #:rest args)
                             (g-print "Running the ~s method" name)
-                            (make-jsc-promise function args))
+                            (make-jsc-promise function args (jsc-context instance)))
                           #:number-of-args (or setter-or-number-of-args 1)))
                         ((eq? #:method type)
                          (jsc-class-add-method! class-obj name function #:number-of-args (or setter-or-number-of-args 1)))
