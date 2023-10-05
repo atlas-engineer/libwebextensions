@@ -732,7 +732,14 @@ Sends the message with NAME name and ARGS as content."
   (g-print "Sending a message to page")
   (let ((result-obj #f))
     (page-send-message
-     (make-message name (jsc->json (scm->jsc args context)))
+     ;; Should be easier with alist/hash, but the `scm->jsc' algo is
+     ;; imperfect.
+     (let* ((payload
+	     (make-jsc-object #f '() context)))
+       (jsc-property-set!
+	payload
+	(jsc-context-value "EXTENSION" context) (scm->jsc args context))
+       (make-message name (jsc->json payload)))
      (lambda (page reply)
        (g-print "Message replied to")
        (let ((data (json->jsc (g-variant-string (message-params reply)) context)))
