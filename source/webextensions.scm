@@ -850,7 +850,18 @@ procedure) return a JSCValue!"
                           ;; optional/rest arguments!!!
                           (lambda* (instance #:rest args)
                             (g-print "Running the ~s method" name)
-                            (make-jsc-promise function args #:context (jsc-context instance)))
+                            (let ((context (jsc-context instance)))
+			      (make-jsc-promise
+			       function
+			       ;; If the argument is not provided,
+			       ;; it's undefined, which might break
+			       ;; everything message processing
+			       (map (lambda (a)
+				      (if (jsc-undefined? a)
+					  (make-jsc-null context)
+					  a))
+				    args)
+			       #:context context)))
                           #:number-of-args (or setter-or-number-of-args 1)))
                         ((eq? #:method type)
                          (jsc-class-add-method! class-obj name function #:number-of-args (or setter-or-number-of-args 1)))
