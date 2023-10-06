@@ -885,7 +885,10 @@ procedure) return a JSCValue!"
   ;; are all subsets of tabs.query. Any way to call tabs.query and
   ;; post-process the result instead of spawning new messages?
   (list "query" #:method "tabs.query" 2)
-  (list "executeScript" #:method "tabs.executeScript" 3))
+  (list "executeScript" #:method "tabs.executeScript" 3)
+  (list "get" #:method "tabs.get" 2)
+  (list "getCurrent" #:method "tabs.getCurrent" 1)
+  (list "print" #:method "tabs.print" 2))
 
 (define-api "runtime" "Runtime"
   (list "getPlatformInfo" #:method "runtime.getPlatformInfo" 1)
