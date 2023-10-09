@@ -759,7 +759,7 @@ Sends the message with NAME name and ARGS as content."
      (jsc-context-evaluate% "function closure (check) {
     function rec (success, failure) {
         var value = check();
-        console.log(\"Got \" + value + \" value\");
+        console.log(\"Got \" + JSON.stringify(value) + \" value\");
         if (value === null) {
             setTimeout(() => {
                 console.log(\"Timeout fired\");
