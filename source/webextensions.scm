@@ -890,6 +890,8 @@ procedure) return a JSCValue!"
   ;; post-process the result instead of spawning new messages?
   (list "query" #:method "tabs.query" 2)
   (list "executeScript" #:method "tabs.executeScript" 3)
+  (list "insertCSS" #:method "tabs.insertCSS" 3)
+  (list "removeCSS" #:method "tabs.removeCSS" 3)
   (list "get" #:method "tabs.get" 2)
   (list "getCurrent" #:method "tabs.getCurrent" 1)
   (list "print" #:method "tabs.print" 2))
