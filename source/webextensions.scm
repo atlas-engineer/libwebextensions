@@ -898,7 +898,18 @@ procedure) return a JSCValue!"
 
 (define-api "runtime" "Runtime"
   (list "getPlatformInfo" #:method "runtime.getPlatformInfo" 1)
-  (list "getBrowserInfo" #:method "runtime.getBrowserInfo" 1))
+  (list "getBrowserInfo" #:method "runtime.getBrowserInfo" 1)
+  (list "getURL" #:method
+	(lambda (instance path)
+	  (let ((path-string (jsc->string path)))
+	    (string-append
+	     "web-extension://"
+	     (jsc-context-value "EXTENSION" (jsc-context instance))
+	     (if (string-prefix? "/" path-string)
+		 ""
+		 "/")
+	     path-string)))
+	2))
 
 (define-api "management" "Management"
   (list "getSelf" #:method "management.getSelf" 1))
