@@ -862,9 +862,7 @@ procedure) return a JSCValue!"
 					  a))
 				    args)
 			       #:context context)))
-                          #:number-of-args (or setter-or-number-of-args
-					       (procedure-maximum-arity function)
-					       1)))
+                          #:number-of-args (or setter-or-number-of-args 1)))
                         ((eq? #:method type)
                          (jsc-class-add-method!
 			  class-obj name function
