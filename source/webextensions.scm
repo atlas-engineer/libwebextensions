@@ -342,7 +342,10 @@ side."
                  '*)
      class
      (string->pointer* name)
-     (procedure->pointer* callback (make-list number-of-args '*))
+     (procedure->pointer*
+      (lambda* (#:rest args)
+	(scm->jsc (apply callback args)))
+      (make-list number-of-args '*))
      %null-pointer
      %null-pointer
      jsc-type
@@ -373,12 +376,11 @@ WARNING: Ensure that SETTER-CALLBACK returns a JSCValue!"
    (string->pointer* name)
    ((foreign-fn "jsc_value_get_type" '() '*))
    (procedure->pointer* (lambda (instance)
-                          (let ((value (getter-callback instance)))
-                            (scm->jsc value))))
-   (procedure->pointer* (if (procedure? setter-callback)
-                            setter-callback
-                            (lambda (instance value)
-                              (make-jsc-null))))
+			  (scm->jsc (getter-callback instance))))
+   (procedure->pointer* (lambda (instance value)
+			  (if (procedure? setter-callback)
+			      (scm->jsc (setter-callback instance value))
+			      (make-jsc-null))))
    %null-pointer
    %null-pointer))
 
@@ -578,10 +580,7 @@ convert it with `scm->jsc'."
       (else %null-pointer))
      (procedure->pointer*
       (lambda* (#:rest args)
-        (let ((value (apply callback args)))
-          (if (pointer? value)
-              value
-              (scm->jsc value))))
+	(scm->jsc (apply callback args)))
       (make-list number-of-args '*))
      %null-pointer
      %null-pointer
@@ -737,8 +736,9 @@ Sends the message with NAME name and ARGS as content."
      (let* ((payload
 	     (make-jsc-object #f '() context)))
        (jsc-property-set!
-	payload
-	(jsc-context-value "EXTENSION" context) (scm->jsc args context))
+	payload "extension" (jsc-context-value "EXTENSION" context))
+       (jsc-property-set!
+	payload "args" (scm->jsc args context))
        (make-message name (jsc->json payload)))
      (lambda (page reply)
        (g-print "Message replied to")
@@ -862,9 +862,15 @@ procedure) return a JSCValue!"
 					  a))
 				    args)
 			       #:context context)))
-                          #:number-of-args (or setter-or-number-of-args 1)))
+                          #:number-of-args (or setter-or-number-of-args
+					       (procedure-maximum-arity function)
+					       1)))
                         ((eq? #:method type)
-                         (jsc-class-add-method! class-obj name function #:number-of-args (or setter-or-number-of-args 1)))
+                         (jsc-class-add-method!
+			  class-obj name function
+			  #:number-of-args (or setter-or-number-of-args
+					       (procedure-maximum-arity function)
+					       1)))
                         ((eq? #:property type)
                          (jsc-class-add-property! class-obj name function setter-or-number-of-args)))
                        (if (eq? #:property type)
