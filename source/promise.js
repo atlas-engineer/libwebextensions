@@ -18,11 +18,11 @@ function closure (check) {
             } else if (value.hasOwnProperty("results")) {
                 success(...value.result);
             } else {
-		let mismatch = new Error("Value passed to Promise callback is malformed: "
-				       + JSON.stringify(value)
-				       + " and missing results/error field.");
-		failure(mismatch);
-	    }
+                let mismatch = new Error("Value passed to Promise callback is malformed: "
+                                       + JSON.stringify(value)
+                                       + " and missing results/error field.");
+                failure(mismatch);
+            }
         }
     }
     return new Promise(rec);

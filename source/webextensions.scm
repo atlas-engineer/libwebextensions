@@ -344,7 +344,7 @@ side."
      (string->pointer* name)
      (procedure->pointer*
       (lambda* (#:rest args)
-	(scm->jsc (apply callback args)))
+        (scm->jsc (apply callback args)))
       (make-list number-of-args '*))
      %null-pointer
      %null-pointer
@@ -376,11 +376,11 @@ WARNING: Ensure that SETTER-CALLBACK returns a JSCValue!"
    (string->pointer* name)
    ((foreign-fn "jsc_value_get_type" '() '*))
    (procedure->pointer* (lambda (instance)
-			  (scm->jsc (getter-callback instance))))
+                          (scm->jsc (getter-callback instance))))
    (procedure->pointer* (lambda (instance value)
-			  (if (procedure? setter-callback)
-			      (scm->jsc (setter-callback instance value))
-			      (make-jsc-null))))
+                          (if (procedure? setter-callback)
+                              (scm->jsc (setter-callback instance value))
+                              (make-jsc-null))))
    %null-pointer
    %null-pointer))
 
@@ -554,10 +554,10 @@ PARENT-OR-NAME is either a JSCClass object or a string name thereof."
   "Turn OBJ (a JS object) into an alist of properties."
   (let destructure ((properties (jsc-properties obj)))
     (if (null-list? properties)
-	'()
-	(append (cons (cons (car properties)
-			    (jsc-property obj (car properties)))
-		      (destructure (cdr properties)))))))
+        '()
+        (append (cons (cons (car properties)
+                            (jsc-property obj (car properties)))
+                      (destructure (cdr properties)))))))
 
 (define* (make-jsc-function
           name callback #:key (context (jsc-context-get/make)) (number-of-args (procedure-maximum-arity callback)))
@@ -580,7 +580,7 @@ convert it with `scm->jsc'."
       (else %null-pointer))
      (procedure->pointer*
       (lambda* (#:rest args)
-	(scm->jsc (apply callback args)))
+        (scm->jsc (apply callback args)))
       (make-list number-of-args '*))
      %null-pointer
      %null-pointer
@@ -691,15 +691,15 @@ Does not support objects and functions yet."
   (g-print "Try converting object ~s of type ~s to Scheme val"
            object (jsc-type-of object))
   (case (jsc-type-of object)
-   ((#:unknown) object)
-   ((#:null) #:null)
-   ((#:undefined) #:undefined)
-   ((#:boolean) (jsc->boolean object))
-   ((#:string) (jsc->string object))
-   ((#:number) (jsc->number object))
-   ((#:array) (jsc->list object))
-   ((#:object) (jsc->alist object))
-   (else (error "Cannot convert " object " to a Scheme value"))))
+    ((#:unknown) object)
+    ((#:null) #:null)
+    ((#:undefined) #:undefined)
+    ((#:boolean) (jsc->boolean object))
+    ((#:string) (jsc->string object))
+    ((#:number) (jsc->number object))
+    ((#:array) (jsc->list object))
+    ((#:object) (jsc->alist object))
+    (else (error "Cannot convert " object " to a Scheme value"))))
 
 ;; Scheme types: boolean?, pair?, symbol?, number?, char?, string?, vector?, port?, procedure?
 ;; Guile ones: hash-table? and objects (any predicate for those? record? maybe)
@@ -734,11 +734,11 @@ Sends the message with NAME name and ARGS as content."
      ;; Should be easier with alist/hash, but the `scm->jsc' algo is
      ;; imperfect.
      (let* ((payload
-	     (make-jsc-object #f '() context)))
+             (make-jsc-object #f '() context)))
        (jsc-property-set!
-	payload "extension" (jsc-context-value "EXTENSION" context))
+        payload "extension" (jsc-context-value "EXTENSION" context))
        (jsc-property-set!
-	payload "args" (scm->jsc args context))
+        payload "args" (scm->jsc args context))
        (make-message name (jsc->json payload)))
      (lambda (page reply)
        (g-print "Message replied to")
@@ -760,24 +760,24 @@ Sends the message with NAME name and ARGS as content."
     function rec (success, failure) {
         var value = check();
         console.log(\"Got \" + JSON.stringify(value) + \" value\");
-        if (value === null) {
+        if (result === null) {
             setTimeout(() => {
                 console.log(\"Timeout fired\");
                 rec(success, failure);
             },
                        100);
         } else {
-            if (value.hasOwnProperty(\"error\")) {
+            if (result.hasOwnProperty(\"error\")) {
                 let error = new Error(value.error);
                 failure(error);
             } else if (value.hasOwnProperty(\"results\")) {
-                success(...value.results);
+                success(...value.result);
             } else {
-		let mismatch = new Error(\"Value passed to Promise callback is malformed: \"
-				       + JSON.stringify(value)
-				       + \" and missing results/error field.\");
-		failure(mismatch);
-	    }
+                let mismatch = new Error(\"Value passed to Promise callback is malformed: \"
+                                       + JSON.stringify(value)
+                                       + \" and missing results/error field.\");
+                failure(mismatch);
+            }
         }
     }
     return new Promise(rec);
@@ -851,24 +851,24 @@ procedure) return a JSCValue!"
                           (lambda* (instance #:rest args)
                             (g-print "Running the ~s method" name)
                             (let ((context (jsc-context instance)))
-			      (make-jsc-promise
-			       function
-			       ;; If the argument is not provided,
-			       ;; it's undefined, which might break
-			       ;; everything message processing
-			       (map (lambda (a)
-				      (if (jsc-undefined? a)
-					  (make-jsc-null context)
-					  a))
-				    args)
-			       #:context context)))
+                              (make-jsc-promise
+                               function
+                               ;; If the argument is not provided,
+                               ;; it's undefined, which might break
+                               ;; everything message processing
+                               (map (lambda (a)
+                                      (if (jsc-undefined? a)
+                                          (make-jsc-null context)
+                                          a))
+                                    args)
+                               #:context context)))
                           #:number-of-args (or setter-or-number-of-args 1)))
                         ((eq? #:method type)
                          (jsc-class-add-method!
-			  class-obj name function
-			  #:number-of-args (or setter-or-number-of-args
-					       (procedure-maximum-arity function)
-					       1)))
+                          class-obj name function
+                          #:number-of-args (or setter-or-number-of-args
+                                               (procedure-maximum-arity function)
+                                               1)))
                         ((eq? #:property type)
                          (jsc-class-add-property! class-obj name function setter-or-number-of-args)))
                        (if (eq? #:property type)
@@ -900,16 +900,16 @@ procedure) return a JSCValue!"
   (list "getPlatformInfo" #:method "runtime.getPlatformInfo" 1)
   (list "getBrowserInfo" #:method "runtime.getBrowserInfo" 1)
   (list "getURL" #:method
-	(lambda (instance path)
-	  (let ((path-string (jsc->string path)))
-	    (string-append
-	     "web-extension://"
-	     (jsc-context-value "EXTENSION" (jsc-context instance))
-	     (if (string-prefix? "/" path-string)
-		 ""
-		 "/")
-	     path-string)))
-	2))
+        (lambda (instance path)
+          (let ((path-string (jsc->string path)))
+            (string-append
+             "web-extension://"
+             (jsc-context-value "EXTENSION" (jsc-context instance))
+             (if (string-prefix? "/" path-string)
+                 ""
+                 "/")
+             path-string)))
+        2))
 
 (define-api "management" "Management"
   (list "getSelf" #:method "management.getSelf" 1))
@@ -1357,14 +1357,14 @@ NOTE: the set of allowed characters in NAME is uncertain."
                       (script-world-name w))
              (let ((context (frame-jsc-context f w)))
                (g-print "Tabs is ~s" (hash-ref *apis* "tabs"))
-	       ;; This is to identify which extension the context
-	       ;; belongs to. Otherwise it's almost impossible to find
-	       ;; the extension given the context.
-	       (jsc-context-value-set! "EXTENSION" name context)
+               ;; This is to identify which extension the context
+               ;; belongs to. Otherwise it's almost impossible to find
+               ;; the extension given the context.
+               (jsc-context-value-set! "EXTENSION" name context)
                (inject-browser context)
                ((hash-ref *apis* "tabs") context)
-	       ((hash-ref *apis* "runtime") context)
-	       ((hash-ref *apis* "management") context)))))
+               ((hash-ref *apis* "runtime") context)
+               ((hash-ref *apis* "management") context)))))
       (g-print "Making extension ~s" name)
       (inject-frame-and-world (page-main-frame *page*) world)
       (g-print "APIs injected into the current context")
@@ -1407,8 +1407,8 @@ NOTE: the set of allowed characters in NAME is uncertain."
        (cond
         ((string=? (message-name message) "addExtension")
          (g-print "Building extension with '~s' name and ~s contents"
-		  (jsc-property param-jsc "name")
-		  (jsc->alist param-jsc))
+                  (jsc-property param-jsc "name")
+                  (jsc->alist param-jsc))
          ;; TODO: de-inject the extension.
          (hash-set! *web-extensions* (jsc-property param-jsc "name")
                     (make-web-extension param-jsc)))))
