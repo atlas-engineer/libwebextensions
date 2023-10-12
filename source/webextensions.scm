@@ -1036,11 +1036,12 @@ ACTION can be:
 callback for the item.
 
 Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
+  (typecheck 'make-context-menu-item action integer? procedure?)
   (let ((item ((foreign-fn "webkit_context_menu_item_new_from_stock_action_with_label"
                            `(,unsigned-int *) '*)
                (if (procedure? action)
-                   action
-                   1000)
+                   1000
+                   action)
                (string->pointer* label))))
     (when (procedure? action)
       (g-signal-connect (context-menu-item-action item) "activate" (procedure->pointer* action '(* *) void)))
