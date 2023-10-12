@@ -789,6 +789,33 @@ Sends the message with NAME name and ARGS as content."
                (make-jsc-null context)))
       #:context context))))
 
+;;; WebExtensions Events
+
+(define-record-type <event>
+  (make-event% callback)
+  event?
+  ;; A list of (FUNCTION . ARGS) pairs, where FUNCTION is JSCValue
+  ;; function pointer, and ARGS is a JSC array args provided when
+  ;; initializing
+  (listeners event-listeners event-listeners-set!)
+  ;; A callback that's called with every listener, initial args, and
+  ;; provided args. Useful to add custom behavior based on what args
+  ;; are passed to the constructor. For instance, only running
+  ;; listener when matching filter (provided initially) matches the
+  ;; (provided at call site) update data in tabs.onUpdated API.
+  (callback event-callback event-callback-set!))
+
+;; TODO
+(define* (make-event
+          #:optional (callback
+                      (lambda* (listener #:rest args)
+                        (make-jsc-null (jsc-context listener)))))
+  (make-event% callback))
+;; TODO
+(define (event-run event args)
+  "Run all EVENT listeners on ARGS (JSC array)."
+  #f)
+
 ;;; Webkit extensions API
 
 ;; Table from browser subproperty name to the injection function.
@@ -921,6 +948,37 @@ procedure) return a JSCValue!"
     (jsc-context-value-set! "Browser" constructor context)
     (jsc-context-value-set! "browser" (make-jsc-object class '()) context)
     (g-print "Browser injected into ~s" context)))
+
+(define (inject-events context)
+  (g-print "Injecting event class into ~s" context)
+  (let* ((class (jsc-class-register! "ExtEvent" context))
+         (constructor (jsc-class-make-constructor class)))
+    ;; (jsc-class-add-method!
+    ;;  class "addListener"
+    ;;  (lambda (listener #:rest args)
+    ;;    #f)
+    ;;  ;; To be safe, because addListener can have arbitrary number of args.
+    ;;  #:number-of-args 10)
+    ;; (jsc-class-add-method!
+    ;;  class "hasListener"
+    ;;  (lambda (instance listener)
+    ;;    (make-jsc-boolean
+    ;;     (memq listener (event-listeners instance)))))
+    ;; (jsc-class-add-method!
+    ;;  class "removeListener"
+    ;;  (lambda (instance listener)
+    ;;    ;; Does the instance come first in setter?
+    ;;    (event-listeners-set!
+    ;;     instance
+    ;;     (filter-map
+    ;;      (lambda (listener+args)
+    ;;        (if (eq? (car listener+args) listener)
+    ;;            #f
+    ;;            listener+args))
+    ;;      (event-listeners instance)))
+    ;;    (make-jsc-null)))
+    (jsc-context-value-set! "ExtEvent" constructor context)
+    (g-print "ExtEvent injected into ~s" context)))
 
 ;;; ContextMenu and ContextMenuItem
 
