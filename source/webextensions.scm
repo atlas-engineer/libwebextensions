@@ -703,7 +703,7 @@ Does not support objects and functions yet."
 
 ;; Scheme types: boolean?, pair?, symbol?, number?, char?, string?, vector?, port?, procedure?
 ;; Guile ones: hash-table? and objects (any predicate for those? record? maybe)
-
+;; FIXME: Transition to hash-tables—alists vs. lists ambiguity.
 (define* (json->jsc json #:optional (context (jsc-context-get/make)))
   "Parse JSON into proper JSCValue."
   ((foreign-fn "jsc_value_new_from_json" '(* *) '*)
