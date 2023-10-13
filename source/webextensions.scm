@@ -509,16 +509,20 @@ JSC value pointers."
     arr))
 (define (jsc-array? jsc)
   (positive? ((foreign-fn "jsc_value_is_array" '(*) unsigned-int) jsc)))
-(define (jsc->list object)
-  "Convert OBJECT JSCValue array into a Scheme list."
+(define (jsc->list% object)
+  "Convert OBJECT (JSC array) to Scheme list.
+But! don't convert array elements, leaving them JSCValues."
   (let rec ((idx 0))
-    (g-print "Running jsc->list")
+    (g-print "Running jsc->list%")
     (if (jsc-property? object idx)
         (begin
           (g-print "Getting property ~s" idx)
-          (cons (jsc->scm (jsc-property object (number->string idx)))
+          (cons (jsc-property% object idx)
                 (rec (1+ idx))))
         '())))
+(define (jsc->list object)
+  "Convert OBJECT JSCValue array and its element into a Scheme list."
+  (map jsc->scm (jsc->list% object)))
 
 (define* (make-jsc-object class contents #:optional (context (jsc-context-get/make)))
   "Create a JSCValue object with CLASS and CONTENTS (alist) inside it.
