@@ -798,7 +798,7 @@ Sends the message with NAME name and ARGS as content."
 ;;; WebExtensions Events
 
 (define-record-type <event>
-  (make-event% callback)
+  (make-event callback)
   event?
   ;; A callback that's called with
   ;; - Event (Scheme record object).
@@ -815,15 +815,12 @@ Sends the message with NAME name and ARGS as content."
   ;; initializing
   (listeners event-listeners event-listeners-set!))
 
-;; TODO
-(define* (make-event
-          #:optional (callback
-                      (lambda* (listener #:rest args)
-                        (make-jsc-null (jsc-context listener)))))
-  (make-event% callback))
-;; TODO
 (define (event-run event args)
-  "Run all EVENT listeners on ARGS (JSC array)."
+  "Run all EVENT listeners on ARGS (JSC array).
+Implicitly uses `event-callback' and `event-listeners'."
+  (map (lambda (l)
+         ((event-callback event) event (car l) (cdr l) args))
+       (event-listeners event))
   #f)
 
 ;;; Webkit extensions API
@@ -850,6 +847,8 @@ where TYPE is one of:
 - #:METHOD---FUNCTION acting on the instance of CLASS. Set the number
   of args (including the class instance!) for FUNCTION to be
   SETTER-OR-NARGS, when provided.
+- #:EVENT---FUNCTION is an event callback. If #T, use the default
+  callback. SETTER-OR-NARGS is unused.
 
 WARNING: Ensure that FUNCTION and SETTER-OR-NARGS (when present and a
 procedure) return a JSCValue!"
@@ -875,7 +874,7 @@ procedure) return a JSCValue!"
                        (typecheck 'define-api/add-methods/properties name
                                   string? pointer?)
                        (typecheck 'define-api/add-methods/properties function
-                                  string? procedure? pointer?)
+                                  string? procedure? pointer? boolean?)
                        (cond
                         ((and (eq? #:method type) (string? function))
                          (g-print "Adding ~s Promise method" name)
@@ -907,7 +906,29 @@ procedure) return a JSCValue!"
                                                1)))
                         ((eq? #:property type)
                          (g-print "Adding ~s property" name)
-                         (jsc-class-add-property! class-obj name function setter-or-number-of-args)))
+                         (jsc-class-add-property! class-obj name function setter-or-number-of-args))
+                        ((eq? #:event type)
+                         (g-print "Adding ~s event")
+                         ;; FIXME: This hard-codes a lot of
+                         ;; logic. There should be a way to
+                         ;; encapsulate that into event
+                         ;; construction. But it's too ugly for that
+                         ;; at the moment (see `inject-events').
+                         (let* ((callback
+                                 (if (eq? #t function)
+                                     (lambda* (event listener initial-args args)
+                                       ;; Ignoring event and its initial args.
+                                       (apply jsc-function-call listener args)
+                                       (make-jsc-null (jsc-context listener)))
+                                     function))
+                                (event (jsc-constructor-call
+                                        (jsc-context-value% "ExtEvent" context)
+                                        (make-jsc-number
+                                         (pointer-address
+                                          (scm->pointer callback))
+                                         context))))
+                           (jsc-class-add-property!
+                            class-obj name (lambda (instance) event)))))
                        (add-methods/properties (cdr meths/props)))))))
          (add-methods/properties methods)
          (jsc-context-value-set! class constructor context)
@@ -956,35 +977,102 @@ procedure) return a JSCValue!"
     (jsc-context-value-set! "browser" (make-jsc-object class '()) context)
     (g-print "Browser injected into ~s" context)))
 
+;; ;; Pointer constructor test code. Leave until ExtEvents are fully
+;; ;; tested.
+;; (let* ((context (make-jsc-context))
+;;        (class (jsc-class-register! "Aaa" context))
+;;        (jsc-type ((foreign-fn "jsc_value_get_type" '() unsigned-int)))
+;;        (g-type-pointer 68)
+;;        (constructor
+;;         ((foreign-fn "jsc_class_add_constructor"
+;;                      (append `(* * * * * ,unsigned-int ,unsigned-int ,unsigned-int))
+;;                      '*)
+;;          ;; Class and (automatic) class name.
+;;          class %null-pointer
+;;          ;; Constructor callback
+;;          (procedure->pointer*
+;;           (lambda (arg)
+;;             (let ((hash (make-hash-table)))
+;;               (hash-set! hash "arg" (jsc->scm arg))
+;;               (scm->pointer hash))))
+;;          ;; User data and GNotifyDestroy
+;;          %null-pointer %null-pointer
+;;          ;; Return type and arg types.
+;;          g-type-pointer 1 jsc-type)))
+;;   (jsc-class-add-method!
+;;    class "aaaArg"
+;;    (lambda* (hash)
+;;      (let ((hash (pointer->scm hash)))
+;;        (scm->jsc (hash-ref hash "arg")))))
+;;   (jsc->scm (jsc-object-call-method
+;;              (jsc-constructor-call constructor (scm->jsc 4 context))
+;;              "aaaArg")))
+
 (define (inject-events context)
   (g-print "Injecting event class into ~s" context)
   (let* ((class (jsc-class-register! "ExtEvent" context))
-         (constructor (jsc-class-make-constructor class)))
-    ;; (jsc-class-add-method!
-    ;;  class "addListener"
-    ;;  (lambda (listener #:rest args)
-    ;;    #f)
-    ;;  ;; To be safe, because addListener can have arbitrary number of args.
-    ;;  #:number-of-args 10)
-    ;; (jsc-class-add-method!
-    ;;  class "hasListener"
-    ;;  (lambda (instance listener)
-    ;;    (make-jsc-boolean
-    ;;     (memq listener (event-listeners instance)))))
-    ;; (jsc-class-add-method!
-    ;;  class "removeListener"
-    ;;  (lambda (instance listener)
-    ;;    ;; Does the instance come first in setter?
-    ;;    (event-listeners-set!
-    ;;     instance
-    ;;     (filter-map
-    ;;      (lambda (listener+args)
-    ;;        (if (eq? (car listener+args) listener)
-    ;;            #f
-    ;;            listener+args))
-    ;;      (event-listeners instance)))
-    ;;    (make-jsc-null)))
+         (jsc-type ((foreign-fn "jsc_value_get_type" '() unsigned-int)))
+         (g-type-pointer 68)
+         (constructor
+          ((foreign-fn "jsc_class_add_constructor"
+                       (append `(* * * * * ,unsigned-int ,unsigned-int ,unsigned-int))
+                       '*)
+           ;; Class and (automatic) class name.
+           class %null-pointer
+           ;; Constructor callback
+           (procedure->pointer*
+            (lambda (callback-address)
+              ;; FIXME: The logic is: we can't pass pointers to JS
+              ;; constructors (I tried), only return them; we can
+              ;; safely pass JS numbers for pointer addresses, though.
+              (scm->pointer
+               (make-event
+                (pointer->scm
+                 (make-pointer
+                  (jsc->number callback-address)))))))
+           ;; User data and GNotifyDestroy
+           %null-pointer %null-pointer
+           ;; Return type and arg num&types.
+           g-type-pointer 1
+           ;; Means that the callback has to be a JS function.
+           jsc-type)))
     (jsc-context-value-set! "ExtEvent" constructor context)
+    ;; ;; TODO
+    ;; (jsc-class-add-method!
+    ;;  class "run"
+    ;;  ;; Where to pass args?
+    ;;  (lambda (event args)
+    ;;    (event-run event args)))
+    (jsc-class-add-method!
+     class "addListener"
+     (lambda* (event listener #:rest args)
+       (let ((event (pointer->scm event)))
+         (event-listeners-set!
+          event
+          (cons (cons listener (remove jsc-undefined? args))
+                (event-listeners event))))
+       (make-jsc-null))
+     ;; To be safe, because addListener can have arbitrary number of
+     ;; args (across all the APIs it's 2 args at most, though).
+     #:number-of-args 10)
+    (jsc-class-add-method!
+     class "hasListener"
+     (lambda (event listener)
+       (let ((event (pointer->scm event)))
+         (make-jsc-boolean (memq listener (map car (event-listeners event)))))))
+    (jsc-class-add-method!
+     class "removeListener"
+     (lambda (event listener)
+       (let ((event (pointer->scm event)))
+         (event-listeners-set!
+          event
+          (filter-map
+           (lambda (listener+args)
+             (if (eq? (car listener+args) listener)
+                 #f
+                 listener+args))
+           (event-listeners event))))
+       (make-jsc-null)))
     (g-print "ExtEvent injected into ~s" context)))
 
 ;;; ContextMenu and ContextMenuItem
