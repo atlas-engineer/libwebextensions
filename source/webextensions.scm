@@ -851,7 +851,7 @@ where TYPE is one of:
   of args (including the class instance!) for FUNCTION to be
   SETTER-OR-NARGS, when provided.
 
-WARNING: Ensure that FUNCTION and SETTER-OR-NARGS (when present and
+WARNING: Ensure that FUNCTION and SETTER-OR-NARGS (when present and a
 procedure) return a JSCValue!"
   (typecheck 'define-api property string?)
   (typecheck 'define-api class string?)
