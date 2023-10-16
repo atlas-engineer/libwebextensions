@@ -800,16 +800,20 @@ Sends the message with NAME name and ARGS as content."
 (define-record-type <event>
   (make-event% callback)
   event?
+  ;; A callback that's called with
+  ;; - Event (Scheme record object).
+  ;; - Listener (JSC function).
+  ;; - Listener initial args (Scheme list of JSCValues).
+  ;; - And provided args (Scheme list of JSCValues).
+  ;; Useful to add custom behavior based on what args are passed to
+  ;; the constructor. For instance, only running listener when
+  ;; matching filter (provided initially) matches the (provided at
+  ;; call site) update data in tabs.onUpdated API.
+  (callback event-callback event-callback-set!)
   ;; A list of (FUNCTION . ARGS) pairs, where FUNCTION is JSCValue
   ;; function pointer, and ARGS is a JSC array args provided when
   ;; initializing
-  (listeners event-listeners event-listeners-set!)
-  ;; A callback that's called with every listener, initial args, and
-  ;; provided args. Useful to add custom behavior based on what args
-  ;; are passed to the constructor. For instance, only running
-  ;; listener when matching filter (provided initially) matches the
-  ;; (provided at call site) update data in tabs.onUpdated API.
-  (callback event-callback event-callback-set!))
+  (listeners event-listeners event-listeners-set!))
 
 ;; TODO
 (define* (make-event
