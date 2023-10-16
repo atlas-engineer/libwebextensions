@@ -876,11 +876,9 @@ procedure) return a JSCValue!"
                                   string? pointer?)
                        (typecheck 'define-api/add-methods/properties function
                                   string? procedure? pointer?)
-                       (if (eq? #:property type)
-                           (g-print "Adding ~s property" name)
-                           (g-print "Adding ~s method" name))
                        (cond
                         ((and (eq? #:method type) (string? function))
+                         (g-print "Adding ~s Promise method" name)
                          (jsc-class-add-method!
                           class-obj name
                           ;; FIXME: Methods should not have
@@ -901,16 +899,15 @@ procedure) return a JSCValue!"
                                #:context context)))
                           #:number-of-args (or setter-or-number-of-args 1)))
                         ((eq? #:method type)
+                         (g-print "Adding ~s method" name)
                          (jsc-class-add-method!
                           class-obj name function
                           #:number-of-args (or setter-or-number-of-args
                                                (procedure-maximum-arity function)
                                                1)))
                         ((eq? #:property type)
+                         (g-print "Adding ~s property" name)
                          (jsc-class-add-property! class-obj name function setter-or-number-of-args)))
-                       (if (eq? #:property type)
-                           (g-print "Added ~s property" name)
-                           (g-print "Added ~s method" name))
                        (add-methods/properties (cdr meths/props)))))))
          (add-methods/properties methods)
          (jsc-context-value-set! class constructor context)
