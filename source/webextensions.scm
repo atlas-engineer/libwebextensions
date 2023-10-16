@@ -1372,14 +1372,10 @@ NOTE: the set of allowed characters in NAME is uncertain."
    ((foreign-fn "webkit_frame_is_main_frame" '(*) unsigned-int)
     frame)))
 
-(define* (frame-jsc-context frame #:optional world)
-  (if (pointer/false world)
-      ((foreign-fn "webkit_frame_get_js_context_for_script_world"
-                   '(* *) '*)
-       frame world)
-      ((foreign-fn "webkit_frame_get_js_context"
-                   '(*) '*)
-       frame)))
+(define* (frame-jsc-context frame #:optional (world (script-world-default)))
+  ((foreign-fn "webkit_frame_get_js_context_for_script_world"
+               '(* *) '*)
+   frame world))
 
 ;; WebKitWebExtension
 
