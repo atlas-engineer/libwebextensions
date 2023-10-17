@@ -416,8 +416,7 @@ context it belongs to."
 (define (jsc->number jsc)
   ;; No int32 conversions, because most Guile operations convert
   ;; floats to ints when necessary.
-  ;; TODO: Maybe call inexact->exact on the result?
-  ((foreign-fn "jsc_value_to_double" '(*) double) jsc))
+  (inexact->exact ((foreign-fn "jsc_value_to_double" '(*) double) jsc)))
 
 (define* (make-jsc-boolean value #:optional (context (jsc-context-get/make)))
   ((foreign-fn "jsc_value_new_boolean" (list '* unsigned-int) '*)
