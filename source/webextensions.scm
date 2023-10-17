@@ -823,6 +823,11 @@ Implicitly uses `event-callback' and `event-listeners'."
        (event-listeners event))
   #f)
 
+(define (default-event-callback event listener initial-args args)
+  ;; Ignoring event and its initial args.
+  (apply jsc-function-call listener args)
+  (make-jsc-null (jsc-context listener)))
+
 ;;; Webkit extensions API
 
 ;; Table from browser subproperty name to the injection function.
@@ -916,10 +921,7 @@ procedure) return a JSCValue!"
                          ;; at the moment (see `inject-events').
                          (let* ((callback
                                  (if (eq? #t function)
-                                     (lambda* (event listener initial-args args)
-                                       ;; Ignoring event and its initial args.
-                                       (apply jsc-function-call listener args)
-                                       (make-jsc-null (jsc-context listener)))
+                                     default-event-callback
                                      function))
                                 (event (jsc-constructor-call
                                         (jsc-context-value% "ExtEvent" context)
