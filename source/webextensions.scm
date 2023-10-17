@@ -1041,6 +1041,7 @@ procedure) return a JSCValue!"
            g-type-pointer 1
            ;; Means that the callback has to be a JS function.
            jsc-type)))
+    (g-print "Constructor created")
     (jsc-context-value-set! "ExtEvent" constructor context)
     ;; ;; TODO
     ;; (jsc-class-add-method!
@@ -1060,11 +1061,13 @@ procedure) return a JSCValue!"
      ;; To be safe, because addListener can have arbitrary number of
      ;; args (across all the APIs it's 2 args at most, though).
      #:number-of-args 10)
+    (g-print "addListener method added")
     (jsc-class-add-method!
      class "hasListener"
      (lambda (event listener)
        (let ((event (pointer->scm event)))
          (make-jsc-boolean (memq listener (map car (event-listeners event)))))))
+    (g-print "hasListener method added")
     (jsc-class-add-method!
      class "removeListener"
      (lambda (event listener)
@@ -1078,6 +1081,7 @@ procedure) return a JSCValue!"
                  listener+args))
            (event-listeners event))))
        (make-jsc-null)))
+    (g-print "removeListener method added")
     (g-print "ExtEvent injected into ~s" context)))
 
 ;;; ContextMenu and ContextMenuItem
