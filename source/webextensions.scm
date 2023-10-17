@@ -1022,14 +1022,19 @@ procedure) return a JSCValue!"
            ;; Constructor callback
            (procedure->pointer*
             (lambda (callback-address)
-              ;; FIXME: The logic is: we can't pass pointers to JS
-              ;; constructors (I tried), only return them; we can
-              ;; safely pass JS numbers for pointer addresses, though.
               (scm->pointer
                (make-event
                 (pointer->scm
                  (make-pointer
-                  (jsc->number callback-address)))))))
+                  ;; REVIEW: Is JS number precision enough for 32-bit
+                  ;; pointer? (because most compilers have pointers
+                  ;; are 32-bit?)
+                  (inexact->exact
+                   ;; FIXME: The logic is: we can't pass pointers to
+                   ;; JS constructors (I tried), only return them; we
+                   ;; can safely pass JS numbers for pointer
+                   ;; addresses, though.
+                   (jsc->number callback-address))))))))
            ;; User data and GNotifyDestroy
            %null-pointer %null-pointer
            ;; Return type and arg num&types.
