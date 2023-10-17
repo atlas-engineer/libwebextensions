@@ -16,7 +16,7 @@
   #:export (entry-webextensions))
 
 ;;; When developing, try (obviously with machine-specific location):
-;; (define lib (load-foreign-library "/gnu/store/9hijxiihm6l9260wmjsnk6qndh5asdf6-webkitgtk-2.38.5/lib/libwebkit2gtk-4.1.so"))
+;; (define lib (load-foreign-library "/gnu/store/r5jhh445ydvsdyicpw7ly8fdy5svvnh5-webkitgtk-2.40.5/lib/libwebkit2gtk-4.1.so"))
 (define lib #f)
 
 ;;; General utilities (Glib and FFI)
@@ -852,8 +852,11 @@ where TYPE is one of:
 - #:METHOD---FUNCTION acting on the instance of CLASS. Set the number
   of args (including the class instance!) for FUNCTION to be
   SETTER-OR-NARGS, when provided.
-- #:EVENT---FUNCTION is an event callback. If #T, use the default
-  callback. SETTER-OR-NARGS is unused.
+- As a special #:METHOD case, FUNCTION can to be #T. This means
+  sending a message and returning a Promise that will be resolved with
+  browser reply to the message.
+- #:EVENT---FUNCTION is an event callback. If #T, use the
+  `default-event-callback'. SETTER-OR-NARGS is unused.
 
 WARNING: Ensure that FUNCTION and SETTER-OR-NARGS (when present and a
 procedure) return a JSCValue!"
@@ -876,12 +879,11 @@ procedure) return a JSCValue!"
                             (setter-or-number-of-args
                              (when (= 4 (length meth/prop))
                                (list-ref meth/prop 3))))
-                       (typecheck 'define-api/add-methods/properties name
-                                  string? pointer?)
+                       (typecheck 'define-api/add-methods/properties name string?)
                        (typecheck 'define-api/add-methods/properties function
-                                  string? procedure? pointer? boolean?)
+                                  procedure? pointer? boolean?)
                        (cond
-                        ((and (eq? #:method type) (string? function))
+                        ((and (eq? #:method type) (eq? #t function))
                          (g-print "Adding ~s Promise method" name)
                          (jsc-class-add-method!
                           class-obj name
@@ -891,7 +893,7 @@ procedure) return a JSCValue!"
                             (g-print "Running the ~s method" name)
                             (let ((context (jsc-context instance)))
                               (make-message-promise
-                               function
+                               (string-append property "." name)
                                ;; If the argument is not provided,
                                ;; it's undefined, which might break
                                ;; everything message processing
@@ -941,21 +943,21 @@ procedure) return a JSCValue!"
 
 (define-api "tabs" "Tabs"
   (list "TAB_ID_NONE" #:property (lambda (instance) -1))
-  (list "create" #:method "tabs.create" 2)
+  (list "create" #:method #t 2)
   ;; tabs.get, tabs.getAllInWindow, tabs.getCurrent, tabs.getSelected
   ;; are all subsets of tabs.query. Any way to call tabs.query and
   ;; post-process the result instead of spawning new messages?
-  (list "query" #:method "tabs.query" 2)
-  (list "executeScript" #:method "tabs.executeScript" 3)
-  (list "insertCSS" #:method "tabs.insertCSS" 3)
-  (list "removeCSS" #:method "tabs.removeCSS" 3)
-  (list "get" #:method "tabs.get" 2)
-  (list "getCurrent" #:method "tabs.getCurrent" 1)
-  (list "print" #:method "tabs.print" 2))
+  (list "query" #:method #t 2)
+  (list "executeScript" #:method #t 3)
+  (list "insertCSS" #:method #t 3)
+  (list "removeCSS" #:method #t 3)
+  (list "get" #:method #t 2)
+  (list "getCurrent" #:method #t 1)
+  (list "print" #:method #t 2))
 
 (define-api "runtime" "Runtime"
-  (list "getPlatformInfo" #:method "runtime.getPlatformInfo" 1)
-  (list "getBrowserInfo" #:method "runtime.getBrowserInfo" 1)
+  (list "getPlatformInfo" #:method #t 1)
+  (list "getBrowserInfo" #:method #t 1)
   (list "getURL" #:method
         (lambda (instance path)
           (let ((path-string (jsc->string path)))
@@ -969,7 +971,7 @@ procedure) return a JSCValue!"
         2))
 
 (define-api "management" "Management"
-  (list "getSelf" #:method "management.getSelf" 1))
+  (list "getSelf" #:method #t 1))
 
 (define (inject-browser context)
   (g-print "Injecting browser into ~s" context)
