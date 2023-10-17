@@ -1534,66 +1534,50 @@ NOTE: the set of allowed characters in NAME is uncertain."
 
 ;;; Entry point and signal processors
 
-(define (catch-all thunk)
-  (with-exception-handler
-      (lambda (exn)
-        (format (current-error-port)
-                "Uncaught exception: ~s" exn)
-        (backtrace)
-        #f)
-    thunk
-    #:unwind? #t))
-
 (define (message-received-callback page message)
-  (catch-all
-   (lambda ()
-     (g-print "Got a message '~s' with content
+  (g-print "Got a message '~s' with content
 '~s'"
-              (message-name message)
-              (or (g-variant-string (message-params message)) ""))
-     (let* ((param-string (or (g-variant-string (message-params message)) ""))
-            (param-jsc (json->jsc param-string)))
-       (g-print "Params are ~s" param-string)
-       (cond
-        ((string=? (message-name message) "addExtension")
-         (g-print "Building extension with '~s' name and ~s contents"
-                  (jsc-property param-jsc "name")
-                  (jsc->alist param-jsc))
-         ;; TODO: de-inject the extension.
-         (hash-set! *web-extensions* (jsc-property param-jsc "name")
-                    (make-web-extension param-jsc)))))
-     (message-reply message)))
+           (message-name message)
+           (or (g-variant-string (message-params message)) ""))
+  (let* ((param-string (or (g-variant-string (message-params message)) ""))
+         (param-jsc (json->jsc param-string)))
+    (g-print "Params are ~s" param-string)
+    (cond
+     ((string=? (message-name message) "addExtension")
+      (g-print "Building extension with '~s' name and ~s contents"
+               (jsc-property param-jsc "name")
+               (jsc->alist param-jsc))
+      ;; TODO: de-inject the extension.
+      (hash-set! *web-extensions* (jsc-property param-jsc "name")
+                 (make-web-extension param-jsc)))))
+  (message-reply message)
   1)
 
 (define (send-request-callback page request redirected-response)
-  (catch-all
-   (lambda ()
-     ;; (g-print "Sending a request to '~s'" (request-uri request))
-     ;; (g-print "Headers are: ~s"
-     ;;          (request-headers request))
-     ;; Watch out: this one if NULL more often than not!
-     (when (pointer/false redirected-response)
-       (g-print "Got a redirection response for '~s' and status ~d"
-                (response-uri redirected-response) (response-status-code redirected-response)))))
+  ;; (g-print "Sending a request to '~s'" (request-uri request))
+  ;; (g-print "Headers are: ~s"
+  ;;          (request-headers request))
+  ;; Watch out: this one if NULL more often than not!
+  (when (pointer/false redirected-response)
+    (g-print "Got a redirection response for '~s' and status ~d"
+             (response-uri redirected-response) (response-status-code redirected-response)))
   ;; 1 = Stop processing, terminate the view.
   ;; 0 = Continue processing.
   0)
 
 (define (page-created-callback extension page)
-  (catch-all
-   (lambda ()
-     (set! *page* page)
-     (g-print "Page ~d created!" (page-id page))
-     (g-signal-connect
-      page "user-message-received"
-      (procedure->pointer*
-       message-received-callback '(* *) unsigned-int))
-     (g-print "User message handler installed!")
-     ;; (g-signal-connect
-     ;;  page "send-request"
-     ;;  (procedure->pointer*
-     ;;   send-request-callback '(* * *) unsigned-int))
-     (g-print "Request handler installed!"))))
+  (set! *page* page)
+  (g-print "Page ~d created!" (page-id page))
+  (g-signal-connect
+   page "user-message-received"
+   (procedure->pointer*
+    message-received-callback '(* *) unsigned-int))
+  (g-print "User message handler installed!")
+  ;; (g-signal-connect
+  ;;  page "send-request"
+  ;;  (procedure->pointer*
+  ;;   send-request-callback '(* * *) unsigned-int))
+  (g-print "Request handler installed!"))
 
 (define (entry-webextensions extension-ptr)
   (catch-all
