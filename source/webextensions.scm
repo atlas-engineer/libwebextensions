@@ -913,7 +913,7 @@ procedure) return a JSCValue!"
                          (g-print "Adding ~s property" name)
                          (jsc-class-add-property! class-obj name function setter-or-number-of-args))
                         ((eq? #:event type)
-                         (g-print "Adding ~s event")
+                         (g-print "Adding ~s event" name)
                          ;; FIXME: This hard-codes a lot of
                          ;; logic. There should be a way to
                          ;; encapsulate that into event
