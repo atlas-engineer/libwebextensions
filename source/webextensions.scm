@@ -1586,10 +1586,8 @@ NOTE: the set of allowed characters in NAME is uncertain."
   (g-print "Request handler installed!"))
 
 (define (entry-webextensions extension-ptr)
-  (catch-all
-   (lambda ()
-     (debug-enable)
-     (g-signal-connect
-      extension-ptr "page-created"
-      (procedure->pointer* page-created-callback '(* *) void))
-     (g-print "WebExtensions Library handlers installed."))))
+  (debug-enable)
+  (g-signal-connect
+   extension-ptr "page-created"
+   (procedure->pointer* page-created-callback '(* *) void))
+  (g-print "WebExtensions Library handlers installed."))
