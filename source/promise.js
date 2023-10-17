@@ -5,18 +5,18 @@ function closure (check) {
     function rec (success, failure) {
         var value = check();
         console.log("Got " + JSON.stringify(value) + " value");
-        if (result === null) {
+        if (value === null) {
             setTimeout(() => {
                 console.log("Timeout fired");
                 rec(success, failure);
             },
                        100);
         } else {
-            if (result.hasOwnProperty("error")) {
+            if (value.hasOwnProperty("error")) {
                 let error = new Error(value.error);
                 failure(error);
             } else if (value.hasOwnProperty("results")) {
-                success(...value.result);
+                success(...value.results);
             } else {
                 let mismatch = new Error("Value passed to Promise callback is malformed: "
                                        + JSON.stringify(value)
