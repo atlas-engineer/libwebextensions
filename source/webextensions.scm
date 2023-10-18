@@ -1019,11 +1019,11 @@ procedure) return a JSCValue!"
 (define (inject-events context)
   (g-print "Injecting event class into ~s" context)
   (let* ((class (jsc-class-register! "ExtEvent" context))
-         (jsc-type ((foreign-fn "jsc_value_get_type" '() unsigned-int)))
+         (jsc-type ((foreign-fn "jsc_value_get_type" '() '*)))
          (g-type-pointer 68)
          (constructor
           ((foreign-fn "jsc_class_add_constructor"
-                       (append `(* * * * * ,unsigned-int ,unsigned-int ,unsigned-int))
+                       (append `(* * * * * ,unsigned-int ,unsigned-int *))
                        '*)
            ;; Class and (automatic) class name.
            class %null-pointer
