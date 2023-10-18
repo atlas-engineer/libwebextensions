@@ -198,10 +198,6 @@ Counts required and optional arguments, in other words."
   (let ((arity (procedure-minimum-arity procedure)))
     (+ (car arity) (cadr arity))))
 
-(define +g-type-none+ 4)
-(define +g-type-pointer+ 68)
-(define +g-type-jsc+ ((foreign-fn "jsc_value_get_type" '() unsigned-int)))
-
 ;;; JSCore bindings
 
 ;; JSCContext
@@ -312,8 +308,8 @@ NAME via `jsc-context-value-set!' to become usable."
   (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*))))
     (apply
      (foreign-fn "jsc_class_add_constructor"
-                 (append `(* * * * * ,unsigned-int ,unsigned-int)
-                         (make-list number-of-args unsigned-int))
+                 (append `(* * * * * * ,unsigned-int)
+                         (make-list number-of-args '*))
                  '*)
      class
      (string->pointer* name)
@@ -324,9 +320,9 @@ NAME via `jsc-context-value-set!' to become usable."
       (make-list number-of-args '*))
      %null-pointer
      %null-pointer
-     +g-type-jsc+
+     jsc-type
      number-of-args
-     (make-list number-of-args +g-type-jsc+))))
+     (make-list number-of-args jsc-type))))
 (define* (jsc-constructor-call constructor #:rest args)
   (apply-with-args "jsc_value_constructor_call" (list constructor) args))
 
@@ -582,8 +578,8 @@ convert it with `scm->jsc'."
   (let ((jsc-type ((foreign-fn "jsc_value_get_type" '() '*))))
     (apply
      (foreign-fn "jsc_value_new_function"
-                 (append `(* * * * * ,unsigned-int ,unsigned-int)
-                         (make-list number-of-args unsigned-int))
+                 (append `(* * * * * * ,unsigned-int)
+                         (make-list number-of-args '*))
                  '*)
      context
      (cond
@@ -598,9 +594,9 @@ convert it with `scm->jsc'."
       (make-list number-of-args '*))
      %null-pointer
      %null-pointer
-     +g-type-jsc+
+     jsc-type
      number-of-args
-     (make-list number-of-args +g-type-jsc+))))
+     (make-list number-of-args jsc-type))))
 (define (jsc-function? obj)
   (positive? ((foreign-fn "jsc_value_is_function" '(*) unsigned-int) obj)))
 
@@ -633,7 +629,8 @@ Applies FUNCTION-NAME to INITIAL-ARGS and ARGS."
                        '*)
            (append initial-args
                    final-args
-                   (list +g-type-none+))))
+                   ;; G_TYPE_NONE (hopefully portable)
+                   (list 4))))
          (_ (g-print "Got value ~s of type ~a" value (jsc-type-of value))))
     ;; (and-let* ((exception (pointer/false (jsc-context-exception context))))
     ;;   (error (string-append
@@ -992,6 +989,8 @@ procedure) return a JSCValue!"
 ;; ;; tested.
 ;; (let* ((context (make-jsc-context))
 ;;        (class (jsc-class-register! "Aaa" context))
+;;        (jsc-type ((foreign-fn "jsc_value_get_type" '() unsigned-int)))
+;;        (g-type-pointer 68)
 ;;        (constructor
 ;;         ((foreign-fn "jsc_class_add_constructor"
 ;;                      (append `(* * * * * ,unsigned-int ,unsigned-int ,unsigned-int))
@@ -1007,7 +1006,7 @@ procedure) return a JSCValue!"
 ;;          ;; User data and GNotifyDestroy
 ;;          %null-pointer %null-pointer
 ;;          ;; Return type and arg types.
-;;          +g-type-pointer+ 1 +g-type-jsc+)))
+;;          g-type-pointer 1 jsc-type)))
 ;;   (jsc-class-add-method!
 ;;    class "aaaArg"
 ;;    (lambda* (hash)
@@ -1020,6 +1019,8 @@ procedure) return a JSCValue!"
 (define (inject-events context)
   (g-print "Injecting event class into ~s" context)
   (let* ((class (jsc-class-register! "ExtEvent" context))
+         (jsc-type ((foreign-fn "jsc_value_get_type" '() unsigned-int)))
+         (g-type-pointer 68)
          (constructor
           ((foreign-fn "jsc_class_add_constructor"
                        (append `(* * * * * ,unsigned-int ,unsigned-int ,unsigned-int))
@@ -1045,9 +1046,9 @@ procedure) return a JSCValue!"
            ;; User data and GNotifyDestroy
            %null-pointer %null-pointer
            ;; Return type and arg num&types.
-           +g-type-pointer+ 1
-           ;; Means that the callback has to be a JS value.
-           +g-type-jsc+)))
+           g-type-pointer 1
+           ;; Means that the callback has to be a JS function.
+           jsc-type)))
     (g-print "Constructor created")
     (jsc-context-value-set! "ExtEvent" constructor context)
     ;; FIXME: It's a separate method because we need to: (1) get the
