@@ -1032,7 +1032,7 @@ procedure) return a JSCValue!"
                  (make-pointer
                   ;; REVIEW: Is JS number precision enough for 32-bit
                   ;; pointer? (because most compilers have pointers
-                  ;; are 32-bit?)
+                  ;; at 32-bit?)
                   (inexact->exact
                    ;; FIXME: The logic is: we can't pass pointers to
                    ;; JS constructors (I tried), only return them; we
