@@ -398,7 +398,7 @@ context it belongs to."
 
 (define (jsc? obj)
   (positive? ((foreign-fn "g_type_check_instance_is_a" (list '* unsigned-int) unsigned-int)
-              object +g-type-jsc+)))
+              obj +g-type-jsc+)))
 
 ;; NOTE: Don't use undefined when passing objects to/from browser:
 ;; JSON doesn't support undefined!
