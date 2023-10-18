@@ -396,6 +396,10 @@ Guaranteed to return a non-NULL pointer, because any JSCValue has a
 context it belongs to."
   ((foreign-fn "jsc_value_get_context" '(*) '*) value))
 
+(define (jsc? obj)
+  (positive? ((foreign-fn "g_type_check_instance_is_a" (list '* unsigned-int) unsigned-int)
+              object +g-type-jsc+)))
+
 ;; NOTE: Don't use undefined when passing objects to/from browser:
 ;; JSON doesn't support undefined!
 (define* (make-jsc-undefined #:optional (context (jsc-context-get/make)))
