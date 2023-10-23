@@ -801,9 +801,14 @@ Sends the message with NAME name and ARGS as content."
 
 ;;; WebExtensions Events
 
+(define *events* (list))
+
 (define-record-type <event>
-  (make-event callback)
+  (make-event% name callback context)
   event?
+  ;; Name of the event prefixed with the API it belongs to
+  ;; i.e. "tabs.onMoved".
+  (name event-name)
   ;; A callback that's called with
   ;; - Event (Scheme record object).
   ;; - Listener (JSC function).
@@ -814,10 +819,17 @@ Sends the message with NAME name and ARGS as content."
   ;; matching filter (provided initially) matches the (provided at
   ;; call site) update data in tabs.onUpdated API.
   (callback event-callback event-callback-set!)
+  ;; A JSCContext this event is injected into.
+  (context event-context)
   ;; A list of (FUNCTION . ARGS) pairs, where FUNCTION is JSCValue
   ;; function pointer, and ARGS is a JSC array args provided when
   ;; initializing
   (listeners event-listeners event-listeners-set!))
+
+(define (make-event name callback context)
+  (let ((event (make-event% name callback context)))
+    (set! *events* (cons event *events*))
+    event))
 
 (define (event-run event args)
   "Run all EVENT listeners on ARGS (JSC array).
@@ -931,6 +943,7 @@ procedure) return a JSCValue!"
                                      function))
                                 (event (jsc-constructor-call
                                         (jsc-context-value% "ExtEvent" context)
+                                        (make-jsc-string (string-append property "." name))
                                         (make-jsc-number
                                          (pointer-address
                                           (scm->pointer callback))
@@ -1029,9 +1042,10 @@ procedure) return a JSCValue!"
            class %null-pointer
            ;; Constructor callback
            (procedure->pointer*
-            (lambda (callback-address)
+            (lambda (name callback-address)
               (scm->pointer
                (make-event
+                (jsc->string name)
                 (pointer->scm
                  (make-pointer
                   ;; REVIEW: Is JS number precision enough for 32-bit
@@ -1042,9 +1056,19 @@ procedure) return a JSCValue!"
                    ;; JS constructors (I tried), only return them; we
                    ;; can safely pass JS numbers for pointer
                    ;; addresses, though.
-                   (jsc->number callback-address))))))))
-           ;; User data and GNotifyDestroy
-           %null-pointer %null-pointer
+                   (jsc->number callback-address))))
+                (jsc-context-current)))))
+           ;; User data
+           %null-pointer
+           ;; GNotifyDestroy
+           (procedure->pointer*
+            (lambda (event-ptr)
+              (remove! (lambda (elem)
+                         (eq? (pointer->scm event-ptr)
+                              elem))
+                       *events*))
+            '(*)
+            void)
            ;; Return type and arg num&types.
            g-type-pointer 1
            ;; Means that the callback has to be a JS function.
@@ -1568,7 +1592,14 @@ NOTE: the set of allowed characters in NAME is uncertain."
       ;; TODO: de-inject the extension.
       (hash-set! *web-extensions* (jsc-property param-jsc "name")
                  (make-web-extension param-jsc))
-      (message-reply message)))
+      (message-reply message))
+     ((string=? name "event")
+      (g-print "Got ~s event" (jsc-property param-jsc "name"))
+      (map
+       (lambda (event)
+         (when (string=? (event-name event) (jsc-property param-jsc "name"))
+           (event-run event (jsc->list% (jsc-property% param-jsc "args")))))
+       *events*)))
     1))
 
 (define (send-request-callback page request redirected-response)
