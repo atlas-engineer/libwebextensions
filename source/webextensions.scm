@@ -1597,9 +1597,9 @@ NOTE: the set of allowed characters in NAME is uncertain."
   ;;   send-request-callback '(* * *) unsigned-int))
   (g-print "Request handler installed!"))
 
-(define (entry-webextensions extension-ptr)
+(define (entry-webextensions extension)
   (debug-enable)
   (g-signal-connect
-   extension-ptr "page-created"
+   extension "page-created"
    (procedure->pointer* page-created-callback '(* *) void))
   (g-print "WebExtensions Library handlers installed."))
