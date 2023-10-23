@@ -1552,24 +1552,24 @@ NOTE: the set of allowed characters in NAME is uncertain."
 
 ;;; Entry point and signal processors
 
-(define (message-received-callback page message)
-  (g-print "Got a message '~s' with content
-'~s'"
-           (message-name message)
-           (or (g-variant-string (message-params message)) ""))
-  (let* ((param-string (or (g-variant-string (message-params message)) ""))
+(define (message-received-callback object message)
+  (let* ((name (message-name message))
+         (param-string (or (g-variant-string (message-params message)) ""))
          (param-jsc (json->jsc param-string)))
-    (g-print "Params are ~s" param-string)
+    (g-print "Got a message '~s' with content
+'~s'"
+             name
+             param-string)
     (cond
-     ((string=? (message-name message) "addExtension")
+     ((string=? name "addExtension")
       (g-print "Building extension with '~s' name and ~s contents"
                (jsc-property param-jsc "name")
                (jsc->alist param-jsc))
       ;; TODO: de-inject the extension.
       (hash-set! *web-extensions* (jsc-property param-jsc "name")
-                 (make-web-extension param-jsc)))))
-  (message-reply message)
-  1)
+                 (make-web-extension param-jsc))
+      (message-reply message)))
+    1))
 
 (define (send-request-callback page request redirected-response)
   ;; (g-print "Sending a request to '~s'" (request-uri request))
