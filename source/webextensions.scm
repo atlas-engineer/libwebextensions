@@ -1603,4 +1603,8 @@ NOTE: the set of allowed characters in NAME is uncertain."
   (g-signal-connect
    extension "page-created"
    (procedure->pointer* page-created-callback '(* *) void))
+  (g-signal-connect
+   extension "user-message-received"
+   (procedure->pointer*
+    message-received-callback '(* *) unsigned-int))
   (g-print "WebExtensions Library handlers installed."))
