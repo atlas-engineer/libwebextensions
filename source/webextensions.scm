@@ -1598,6 +1598,7 @@ NOTE: the set of allowed characters in NAME is uncertain."
   (g-print "Request handler installed!"))
 
 (define (entry-webextensions extension)
+  (set! *extension* extension)
   (debug-enable)
   (g-signal-connect
    extension "page-created"
