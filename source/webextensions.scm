@@ -1075,12 +1075,6 @@ return a JSCValue!"
            jsc-type)))
     (g-print "Constructor created")
     (jsc-context-value-set! "ExtEvent" constructor context)
-    ;; FIXME: It's a separate method because we need to: (1) get the
-    ;; event method, not the JavaScript representation of it, and (2)
-    ;; pass it JavaScript values. Thus the method bridging two worlds.
-    (jsc-class-add-method!
-     class "run" (lambda (event args)
-                   (event-run (pointer->scm event) args)))
     (jsc-class-add-method!
      class "addListener"
      (lambda* (event listener #:rest args)
