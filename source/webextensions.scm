@@ -609,7 +609,7 @@ Applies FUNCTION-NAME to INITIAL-ARGS and ARGS."
          (context (jsc-context (first initial-args)))
          (_ (g-print "Context is ~s" context))
          (final-args (fold (lambda (a l)
-                             (append l (list jsc-type (scm->jsc a))))
+                             (append l (list jsc-type (scm->jsc a context))))
                            '()
                            args))
          (_ (g-print "Args are ~s" final-args))
