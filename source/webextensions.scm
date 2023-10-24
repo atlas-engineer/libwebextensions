@@ -732,7 +732,7 @@ and leads to weird behaviors."
   "Create a JS error with MESSAGE."
   (jsc-constructor-call
    (jsc-context-value% "Error" context)
-   (scm->jsc message)))
+   message))
 
 (define* (make-message-promise name args #:key (context (jsc-context-get/make)))
   "Create a JS promise waiting on NAME message reply.
@@ -942,11 +942,9 @@ procedure) return a JSCValue!"
                                      function))
                                 (event (jsc-constructor-call
                                         (jsc-context-value% "ExtEvent" context)
-                                        (make-jsc-string (string-append property "." name))
-                                        (make-jsc-number
-                                         (pointer-address
-                                          (scm->pointer callback))
-                                         context))))
+                                        (string-append property "." name)
+                                        (pointer-address
+                                         (scm->pointer callback)))))
                            (jsc-class-add-property!
                             class-obj name (lambda (instance) event)))))
                        (add-methods/properties (cdr meths/props)))))))
