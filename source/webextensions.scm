@@ -806,7 +806,8 @@ Sends the message with NAME name and ARGS as content."
   (make-event% name callback context)
   event?
   ;; Name of the event prefixed with the API it belongs to
-  ;; i.e. "tabs.onMoved".
+  ;; i.e. "tabs.onMoved". Useful when finding all the events with the
+  ;; matching name in `message-received-callback'.
   (name event-name)
   ;; A callback that's called with
   ;; - Event (Scheme record object).
@@ -818,7 +819,10 @@ Sends the message with NAME name and ARGS as content."
   ;; matching filter (provided initially) matches the (provided at
   ;; call site) update data in tabs.onUpdated API.
   (callback event-callback event-callback-set!)
-  ;; A JSCContext this event is injected into.
+  ;; A JSCContext this event is injected into. Event object doesn't
+  ;; have the reference to its context by default, so we have to store
+  ;; the context for latter evaluation of listener args from browser
+  ;; message.
   (context event-context)
   ;; A list of (FUNCTION . ARGS) pairs, where FUNCTION is JSCValue
   ;; function pointer, and ARGS is a JSC array args provided when
