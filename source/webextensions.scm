@@ -863,22 +863,22 @@ object (i.e. \"browser.bookmarks\" for \"bookmarks\" PROPERTY).
 
 CLASS is the string name of the class API is generated from.
 
-METHODS is a list of (NAME TYPE FUNCTION &OPTIONAL SETTER-OR-NARGS),
+METHODS is a list of (NAME TYPE FUNCTION &OPTIONAL AUX),
 where TYPE is one of:
-- #:PROPERTY---FUNCTION is a getter, SETTER-OR-NARGS is a setter.
-  - In case SETTER-OR-NARGS is not provided, generate dummy setter.
+- #:PROPERTY---FUNCTION is a getter, AUX is a setter.
+  - In case AUX is not provided, generate dummy setter.
   - In case FUNCTION is an atom, create getter returning the atom.
 - #:METHOD---FUNCTION acting on the instance of CLASS. Set the number
   of args (including the class instance!) for FUNCTION to be
-  SETTER-OR-NARGS, when provided.
+  AUX, when provided.
 - As a special #:METHOD case, FUNCTION can to be #T. This means
   sending a message and returning a Promise that will be resolved with
   browser reply to the message.
 - #:EVENT---FUNCTION is an event callback. If #T, use the
-  `default-event-callback'. SETTER-OR-NARGS is unused.
+  `default-event-callback'. AUX is unused.
 
-WARNING: Ensure that FUNCTION and SETTER-OR-NARGS (when present and a
-procedure) return a JSCValue!"
+WARNING: Ensure that FUNCTION and AUX (when #:PROPERTY and provided)
+return a JSCValue!"
   (typecheck 'define-api property string?)
   (typecheck 'define-api class string?)
   (hash-set!
@@ -895,9 +895,8 @@ procedure) return a JSCValue!"
                             (name (list-ref meth/prop 0))
                             (type (list-ref meth/prop 1))
                             (function (list-ref meth/prop 2))
-                            (setter-or-number-of-args
-                             (when (= 4 (length meth/prop))
-                               (list-ref meth/prop 3))))
+                            (aux (when (= 4 (length meth/prop))
+                                   (list-ref meth/prop 3))))
                        (typecheck 'define-api/add-methods/properties name string?)
                        (typecheck 'define-api/add-methods/properties function
                                   procedure? pointer? boolean?)
@@ -922,17 +921,17 @@ procedure) return a JSCValue!"
                                           a))
                                     args)
                                #:context context)))
-                          #:number-of-args (or setter-or-number-of-args 1)))
+                          #:number-of-args (or aux 1)))
                         ((eq? #:method type)
                          (g-print "Adding ~s method" name)
                          (jsc-class-add-method!
                           class-obj name function
-                          #:number-of-args (or setter-or-number-of-args
+                          #:number-of-args (or aux
                                                (procedure-maximum-arity function)
                                                1)))
                         ((eq? #:property type)
                          (g-print "Adding ~s property" name)
-                         (jsc-class-add-property! class-obj name function setter-or-number-of-args))
+                         (jsc-class-add-property! class-obj name function aux))
                         ((eq? #:event type)
                          (g-print "Adding ~s event" name)
                          ;; FIXME: This hard-codes a lot of
