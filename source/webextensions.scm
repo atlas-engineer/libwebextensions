@@ -106,8 +106,8 @@ arglist."
    #:return-type return-type
    #:arg-types args))
 
-(define* (g-print format-string . args)
-  "Print values using Glib primitives."
+(define* (g-log format-string . args)
+  "Print values to inferior shell using Glib primitives and `format'."
   ((pointer->procedure void
                        (foreign-library-pointer lib "g_print")
                        '(* *))
@@ -125,11 +125,11 @@ arglist."
   "Fetch the G-VARIANT string, if there's one.
 G-VARIANT is implied to be a maybe/string GVariant."
   (typecheck 'g-variant-string g-variant pointer? false?)
-  (g-print "GVariant is ~s" g-variant)
+  (g-log "GVariant is ~s" g-variant)
   (and-let* ((g-variant (pointer/false g-variant))
              (class (integer->char
                      ((foreign-fn "g_variant_classify" '(*) unsigned-int) g-variant)))
-             (_ (g-print "Class is ~s" class))
+             (_ (g-log "Class is ~s" class))
              (get-string (lambda (g-var)
                            (pointer->string*
                             (pointer/false ((foreign-fn "g_variant_get_string" '(* *) '*)
@@ -171,24 +171,24 @@ FINISH-FN should be one of:
 - Procedure on object and GAsyncResult."
   (typecheck 'make-g-async-callback finish-fn string? procedure?)
   (typecheck 'make-g-async-callback callback pointer? false? (procedure-of-arity? 2))
-  (g-print "Creating a GAsyncCallback for ~s finishing with ~a" callback finish-fn)
+  (g-log "Creating a GAsyncCallback for ~s finishing with ~a" callback finish-fn)
   (if (procedure? callback)
       (procedure->pointer* (lambda (object result)
-                             (g-print "GAsyncCallback entered with ~s and ~s"
+                             (g-log "GAsyncCallback entered with ~s and ~s"
                                       object result)
                              (let ((final-result
                                     (cond
                                      ((string? finish-fn)
-                                      (g-print "Finish-fn is a string")
+                                      (g-log "Finish-fn is a string")
                                       ((foreign-fn finish-fn '(* * *) '*)
                                        object result %null-pointer))
                                      ((procedure? finish-fn)
-                                      (g-print "Finish-fn is a procedure")
+                                      (g-log "Finish-fn is a procedure")
                                       (finish-fn object result)))))
-                               (g-print "Final result is ~s, callback is ~s"
+                               (g-log "Final result is ~s, callback is ~s"
                                         final-result callback)
                                (callback object final-result))
-                             (g-print "GAsyncCallback terminated"))
+                             (g-log "GAsyncCallback terminated"))
                            '(* *) void)
       %null-pointer))
 
@@ -517,10 +517,10 @@ JSC value pointers."
   "Convert OBJECT (JSC array) to Scheme list.
 But! don't convert array elements, leaving them JSCValues."
   (let rec ((idx 0))
-    (g-print "Running jsc->list%")
+    (g-log "Running jsc->list%")
     (if (jsc-property? object idx)
         (begin
-          (g-print "Getting property ~s" idx)
+          (g-log "Getting property ~s" idx)
           (cons (jsc-property% object idx)
                 (rec (1+ idx))))
         '())))
@@ -603,17 +603,17 @@ convert it with `scm->jsc'."
 (define (apply-with-args function-name initial-args args)
   "Helper for function application functions.
 Applies FUNCTION-NAME to INITIAL-ARGS and ARGS."
-  (let* ((_ (g-print "First initial value is an ~a"
+  (let* ((_ (g-log "First initial value is an ~a"
                      (jsc-type-of (car initial-args))))
          (jsc-type ((foreign-fn "jsc_value_get_type" '() '*)))
          (context (jsc-context (first initial-args)))
-         (_ (g-print "Context is ~s" context))
+         (_ (g-log "Context is ~s" context))
          (final-args (fold (lambda (a l)
                              (append l (list jsc-type (scm->jsc a))))
                            '()
                            args))
-         (_ (g-print "Args are ~s" final-args))
-         (_ (g-print "Types are ~s" (map (lambda (x)
+         (_ (g-log "Args are ~s" final-args))
+         (_ (g-log "Types are ~s" (map (lambda (x)
                                            (if (eq? jsc-type x)
                                                #:type
                                                (jsc-type-of x)))
@@ -630,7 +630,7 @@ Applies FUNCTION-NAME to INITIAL-ARGS and ARGS."
                    final-args
                    ;; G_TYPE_NONE (hopefully portable)
                    (list 4))))
-         (_ (g-print "Got value ~s of type ~a" value (jsc-type-of value))))
+         (_ (g-log "Got value ~s of type ~a" value (jsc-type-of value))))
     ;; (and-let* ((exception (pointer/false (jsc-context-exception context))))
     ;;   (error (string-append
     ;;           "JS " (jsc-exception-name exception) " in " function-name ": "
@@ -697,7 +697,7 @@ already and is returned."
 (define* (jsc->scm object)
   "Convert JSCValue OBJECT to a Scheme value.
 Does not support objects and functions yet."
-  (g-print "Try converting object ~s of type ~s to Scheme val"
+  (g-log "Try converting object ~s of type ~s to Scheme val"
            object (jsc-type-of object))
   (case (jsc-type-of object)
     ((#:unknown) object)
@@ -737,7 +737,7 @@ and leads to weird behaviors."
 (define* (make-message-promise name args #:key (context (jsc-context-get/make)))
   "Create a JS promise waiting on NAME message reply.
 Sends the message with NAME name and ARGS as content."
-  (g-print "Sending a message to page")
+  (g-log "Sending a message to page")
   (let ((result-obj #f))
     (page-send-message
      ;; Should be easier with alist/hash, but the `scm->jsc' algo is
@@ -750,9 +750,9 @@ Sends the message with NAME name and ARGS as content."
         payload "args" (scm->jsc args context))
        (make-message name (jsc->json payload)))
      (lambda (page reply)
-       (g-print "Message replied to")
+       (g-log "Message replied to")
        (let ((data (json->jsc (g-variant-string (message-params reply)) context)))
-         (g-print "Got ~s data" data)
+         (g-log "Got ~s data" data)
          (cond
           ((not (or (jsc-object? data)
                     (jsc-null? data)))
@@ -884,10 +884,10 @@ return a JSCValue!"
   (hash-set!
    *apis* property
    (lambda (context)
-     (g-print "Injecting ~s API into context ~s" property context)
+     (g-log "Injecting ~s API into context ~s" property context)
      (let* ((class-obj (jsc-class-register! class context))
             (constructor (jsc-class-make-constructor class-obj)))
-       (g-print "Constructor for ~s created" class)
+       (g-log "Constructor for ~s created" class)
        (letrec ((add-methods/properties
                  (lambda (meths/props)
                    (unless (null? meths/props)
@@ -902,7 +902,7 @@ return a JSCValue!"
                                   procedure? pointer? boolean?)
                        (cond
                         ((and (eq? #:method type) (eq? #t function))
-                         (g-print "Adding ~s Promise method" name)
+                         (g-log "Adding ~s Promise method" name)
                          (jsc-class-add-method!
                           class-obj name
                           ;; FIXME: Methods should not have
@@ -922,17 +922,17 @@ return a JSCValue!"
                                #:context context)))
                           #:number-of-args (or aux 1)))
                         ((eq? #:method type)
-                         (g-print "Adding ~s method" name)
+                         (g-log "Adding ~s method" name)
                          (jsc-class-add-method!
                           class-obj name function
                           #:number-of-args (or aux
                                                (procedure-maximum-arity function)
                                                1)))
                         ((eq? #:property type)
-                         (g-print "Adding ~s property" name)
+                         (g-log "Adding ~s property" name)
                          (jsc-class-add-property! class-obj name function aux))
                         ((eq? #:event type)
-                         (g-print "Adding ~s event" name)
+                         (g-log "Adding ~s event" name)
                          ;; FIXME: This hard-codes a lot of
                          ;; logic. There should be a way to
                          ;; encapsulate that into event
@@ -990,12 +990,12 @@ return a JSCValue!"
   (list "getSelf" #:method #t 1))
 
 (define (inject-browser context)
-  (g-print "Injecting browser into ~s" context)
+  (g-log "Injecting browser into ~s" context)
   (let* ((class (jsc-class-register! "Browser" context))
          (constructor (jsc-class-make-constructor class)))
     (jsc-context-value-set! "Browser" constructor context)
     (jsc-context-value-set! "browser" (make-jsc-object class '()) context)
-    (g-print "Browser injected into ~s" context)))
+    (g-log "Browser injected into ~s" context)))
 
 ;; ;; Pointer constructor test code. Leave until ExtEvents are fully
 ;; ;; tested.
@@ -1029,7 +1029,7 @@ return a JSCValue!"
 ;;              "aaaArg")))
 
 (define (inject-events context)
-  (g-print "Injecting event class into ~s" context)
+  (g-log "Injecting event class into ~s" context)
   (let* ((class (jsc-class-register! "ExtEvent" context))
          (jsc-type ((foreign-fn "jsc_value_get_type" '() '*)))
          (g-type-pointer 68)
@@ -1072,7 +1072,7 @@ return a JSCValue!"
            g-type-pointer 1
            ;; Means that the callback has to be a JS function.
            jsc-type)))
-    (g-print "Constructor created")
+    (g-log "Constructor created")
     (jsc-context-value-set! "ExtEvent" constructor context)
     (jsc-class-add-method!
      class "addListener"
@@ -1086,13 +1086,13 @@ return a JSCValue!"
      ;; To be safe, because addListener can have arbitrary number of
      ;; args (across all the APIs it's 2 args at most, though).
      #:number-of-args 10)
-    (g-print "addListener method added")
+    (g-log "addListener method added")
     (jsc-class-add-method!
      class "hasListener"
      (lambda (event listener)
        (let ((event (pointer->scm event)))
          (make-jsc-boolean (memq listener (map car (event-listeners event)))))))
-    (g-print "hasListener method added")
+    (g-log "hasListener method added")
     (jsc-class-add-method!
      class "removeListener"
      (lambda (event listener)
@@ -1106,8 +1106,8 @@ return a JSCValue!"
                  listener+args))
            (event-listeners event))))
        (make-jsc-null)))
-    (g-print "removeListener method added")
-    (g-print "ExtEvent injected into ~s" context)))
+    (g-log "removeListener method added")
+    (g-log "ExtEvent injected into ~s" context)))
 
 ;;; ContextMenu and ContextMenuItem
 
@@ -1179,7 +1179,7 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
 ;; UserMessage
 
 (define* (make-message name #:optional (params (make-g-variant #f)))
-  (g-print "Making user message ~s with params ~s" name params)
+  (g-log "Making user message ~s with params ~s" name params)
   ((foreign-fn "webkit_user_message_new" '(* *) '*)
    (string->pointer* name)
    (cond
@@ -1214,19 +1214,19 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
 (define* (page-send-message message
                             #:optional (callback %null-pointer) (page *page*))
   (typecheck 'page-send-message callback pointer? false? (procedure-of-arity? 2))
-  (g-print "Sending page message ~s with callback ~s" message callback)
+  (g-log "Sending page message ~s with callback ~s" message callback)
   ((foreign-fn "webkit_web_page_send_message_to_view" '(* * * * *) void)
    page message %null-pointer
    (make-g-async-callback
     (lambda (object reply-message)
       (let* ((params (message-params reply-message))
-             (_ (g-print "Got a reply with ~s params" (message-params reply-message)))
+             (_ (g-log "Got a reply with ~s params" (message-params reply-message)))
              (params-string (g-variant-string params)))
-        (g-print "Got a reply with contents ~s" params-string)
+        (g-log "Got a reply with contents ~s" params-string)
         (callback object reply-message)))
     "webkit_web_page_send_message_to_view_finish")
    %null-pointer)
-  (g-print "Message sent to page in page-send-message"))
+  (g-log "Message sent to page in page-send-message"))
 
 (define (page-main-frame page)
   "Get the main WebKitFrame associated with PAGE."
@@ -1273,7 +1273,7 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
      headers
      (procedure->pointer*
       (lambda (name value)
-        (g-print "Started processing header ~s" (pointer->string* name))
+        (g-log "Started processing header ~s" (pointer->string* name))
         (and-let* ((actual-name (pointer->string* name))
                    (name-proper?
                     (string-every
@@ -1537,10 +1537,10 @@ NOTE: the set of allowed characters in NAME is uncertain."
     (hash-set! *web-extensions* name extension)
     (let ((inject-frame-and-world
            (lambda (f w)
-             (g-print "Injecting the extension API into ~s world"
+             (g-log "Injecting the extension API into ~s world"
                       (script-world-name w))
              (let ((context (frame-jsc-context f w)))
-               (g-print "Tabs is ~s" (hash-ref *apis* "tabs"))
+               (g-log "Tabs is ~s" (hash-ref *apis* "tabs"))
                ;; This is to identify which extension the context
                ;; belongs to. Otherwise it's almost impossible to find
                ;; the extension given the context.
@@ -1550,16 +1550,16 @@ NOTE: the set of allowed characters in NAME is uncertain."
                ((hash-ref *apis* "tabs") context)
                ((hash-ref *apis* "runtime") context)
                ((hash-ref *apis* "management") context)))))
-      (g-print "Making extension ~s" name)
+      (g-log "Making extension ~s" name)
       (inject-frame-and-world (page-main-frame *page*) world)
-      (g-print "APIs injected into the current context")
+      (g-log "APIs injected into the current context")
       (g-signal-connect
        world "window-object-cleared"
        (procedure->pointer*
         (lambda (w page frame)
           (inject-frame-and-world frame w))
         '(* * *) void))
-      (g-print "Window object cleared callback set"))))
+      (g-log "Window object cleared callback set"))))
 
 (define (we-context web-extension)
   (frame-jsc-context (page-main-frame *page*) (we-world web-extension)))
@@ -1573,13 +1573,13 @@ NOTE: the set of allowed characters in NAME is uncertain."
   (let* ((name (message-name message))
          (param-string (or (g-variant-string (message-params message)) ""))
          (param-jsc (json->jsc param-string)))
-    (g-print "Got a message '~s' with content
+    (g-log "Got a message '~s' with content
 '~s'"
              name
              param-string)
     (cond
      ((string=? name "addExtension")
-      (g-print "Building extension with '~s' name and ~s contents"
+      (g-log "Building extension with '~s' name and ~s contents"
                (jsc-property param-jsc "name")
                (jsc->alist param-jsc))
       ;; TODO: de-inject the extension.
@@ -1587,7 +1587,7 @@ NOTE: the set of allowed characters in NAME is uncertain."
                  (make-web-extension param-jsc))
       (message-reply message))
      ((string=? name "event")
-      (g-print "Got ~s event" (jsc-property param-jsc "name"))
+      (g-log "Got ~s event" (jsc-property param-jsc "name"))
       (map
        (lambda (event)
          (when (string=? (event-name event) (jsc-property param-jsc "name"))
@@ -1596,12 +1596,12 @@ NOTE: the set of allowed characters in NAME is uncertain."
     1))
 
 (define (send-request-callback page request redirected-response)
-  ;; (g-print "Sending a request to '~s'" (request-uri request))
-  ;; (g-print "Headers are: ~s"
+  ;; (g-log "Sending a request to '~s'" (request-uri request))
+  ;; (g-log "Headers are: ~s"
   ;;          (request-headers request))
   ;; Watch out: this one if NULL more often than not!
   (when (pointer/false redirected-response)
-    (g-print "Got a redirection response for '~s' and status ~d"
+    (g-log "Got a redirection response for '~s' and status ~d"
              (response-uri redirected-response) (response-status-code redirected-response)))
   ;; 1 = Stop processing, terminate the view.
   ;; 0 = Continue processing.
@@ -1609,17 +1609,17 @@ NOTE: the set of allowed characters in NAME is uncertain."
 
 (define (page-created-callback extension page)
   (set! *page* page)
-  (g-print "Page ~d created!" (page-id page))
+  (g-log "Page ~d created!" (page-id page))
   (g-signal-connect
    page "user-message-received"
    (procedure->pointer*
     message-received-callback '(* *) unsigned-int))
-  (g-print "User message handler installed!")
+  (g-log "User message handler installed!")
   ;; (g-signal-connect
   ;;  page "send-request"
   ;;  (procedure->pointer*
   ;;   send-request-callback '(* * *) unsigned-int))
-  (g-print "Request handler installed!"))
+  (g-log "Request handler installed!"))
 
 (define (entry-webextensions extension)
   (set! *extension* extension)
@@ -1631,4 +1631,4 @@ NOTE: the set of allowed characters in NAME is uncertain."
    extension "user-message-received"
    (procedure->pointer*
     message-received-callback '(* *) unsigned-int))
-  (g-print "WebExtensions Library handlers installed."))
+  (g-log "WebExtensions Library handlers installed."))
