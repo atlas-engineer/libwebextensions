@@ -108,9 +108,7 @@ arglist."
 
 (define* (g-log format-string . args)
   "Print values to inferior shell using Glib primitives and `format'."
-  ((pointer->procedure void
-                       (foreign-library-pointer lib "g_print")
-                       '(*))
+  ((foreign-fn "g_print" '(*) void)
    (string->pointer (string-append (apply format #f format-string args)
                                    "\n"))))
 
