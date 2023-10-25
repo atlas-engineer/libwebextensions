@@ -908,7 +908,6 @@ return a JSCValue!"
                           ;; FIXME: Methods should not have
                           ;; optional/rest arguments!!!
                           (lambda* (instance #:rest args)
-                            (g-print "Running the ~s method" name)
                             (let ((context (jsc-context instance)))
                               (make-message-promise
                                (string-append property "." name)
