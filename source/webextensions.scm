@@ -110,9 +110,9 @@ arglist."
   "Print values to inferior shell using Glib primitives and `format'."
   ((pointer->procedure void
                        (foreign-library-pointer lib "g_print")
-                       '(* *))
-   (string->pointer "%s\n")
-   (string->pointer (apply format #f format-string (or args '())))))
+                       '(*))
+   (string->pointer (string-append (apply format #f format-string args)
+                                   "\n"))))
 
 (define (make-g-variant string-or-nothing)
   "Create and return a new maybe string (ms) GVariant."
