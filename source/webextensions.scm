@@ -1547,7 +1547,7 @@ NOTE: the set of allowed characters in NAME is uncertain."
                ;; the extension given the context.
                (jsc-context-value-set! "EXTENSION" name context)
                (inject-browser context)
-               (inject-events context)
+               ;; (inject-events context)
                ((hash-ref *apis* "tabs") context)
                ((hash-ref *apis* "runtime") context)
                ((hash-ref *apis* "management") context)))))
