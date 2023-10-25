@@ -991,9 +991,11 @@ return a JSCValue!"
 (define (inject-browser context)
   (g-log "Injecting browser into ~s" context)
   (let* ((class (jsc-class-register! "Browser" context))
-         (constructor (jsc-class-make-constructor class)))
+         (constructor (jsc-class-make-constructor class))
+         (object (make-jsc-object class '())))
     (jsc-context-value-set! "Browser" constructor context)
-    (jsc-context-value-set! "browser" (make-jsc-object class '()) context)
+    (jsc-context-value-set! "browser" object context)
+    (jsc-context-value-set! "chrome" object context)
     (g-log "Browser injected into ~s" context)))
 
 ;; ;; Pointer constructor test code. Leave until ExtEvents are fully
