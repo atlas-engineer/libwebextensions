@@ -945,8 +945,9 @@ return a JSCValue!"
                                 (event (jsc-constructor-call
                                         (jsc-context-value% "ExtEvent" context)
                                         (string-append property "." name)
-                                        (pointer-address
-                                         (scm->pointer callback)))))
+                                        (number->string
+                                         (pointer-address
+                                          (scm->pointer callback))))))
                            (jsc-class-add-property!
                             class-obj name (lambda (instance) event)))))
                        (add-methods/properties (cdr meths/props)))))))
@@ -1049,15 +1050,12 @@ return a JSCValue!"
                 (jsc->string name)
                 (pointer->scm
                  (make-pointer
-                  ;; REVIEW: Is JS number precision enough for 32-bit
-                  ;; pointer? (because most compilers have pointers
-                  ;; at 32-bit?)
                   (inexact->exact
                    ;; FIXME: The logic is: we can't pass pointers to
                    ;; JS constructors (I tried), only return them; we
-                   ;; can safely pass JS numbers for pointer
+                   ;; can safely pass JS strings with pointer
                    ;; addresses, though.
-                   (jsc->number callback-address))))
+                   (string->number (jsc->string callback-address)))))
                 (jsc-context-current)))))
            ;; User data
            %null-pointer
