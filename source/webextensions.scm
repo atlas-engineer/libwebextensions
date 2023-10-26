@@ -174,7 +174,7 @@ FINISH-FN should be one of:
   (if (procedure? callback)
       (procedure->pointer* (lambda (object result)
                              (g-log "GAsyncCallback entered with ~s and ~s"
-                                      object result)
+                                    object result)
                              (let ((final-result
                                     (cond
                                      ((string? finish-fn)
@@ -185,7 +185,7 @@ FINISH-FN should be one of:
                                       (g-log "Finish-fn is a procedure")
                                       (finish-fn object result)))))
                                (g-log "Final result is ~s, callback is ~s"
-                                        final-result callback)
+                                      final-result callback)
                                (callback object final-result))
                              (g-log "GAsyncCallback terminated"))
                            '(* *) void)
@@ -603,7 +603,7 @@ convert it with `scm->jsc'."
   "Helper for function application functions.
 Applies FUNCTION-NAME to INITIAL-ARGS and ARGS."
   (let* ((_ (g-log "First initial value is an ~a"
-                     (jsc-type-of (car initial-args))))
+                   (jsc-type-of (car initial-args))))
          (jsc-type ((foreign-fn "jsc_value_get_type" '() '*)))
          (context (jsc-context (first initial-args)))
          (_ (g-log "Context is ~s" context))
@@ -613,10 +613,10 @@ Applies FUNCTION-NAME to INITIAL-ARGS and ARGS."
                            args))
          (_ (g-log "Args are ~s" final-args))
          (_ (g-log "Types are ~s" (map (lambda (x)
-                                           (if (eq? jsc-type x)
-                                               #:type
-                                               (jsc-type-of x)))
-                                         final-args)))
+                                         (if (eq? jsc-type x)
+                                             #:type
+                                             (jsc-type-of x)))
+                                       final-args)))
          (value
           (apply
            (foreign-fn function-name
@@ -697,7 +697,7 @@ already and is returned."
   "Convert JSCValue OBJECT to a Scheme value.
 Does not support objects and functions yet."
   (g-log "Try converting object ~s of type ~s to Scheme val"
-           object (jsc-type-of object))
+         object (jsc-type-of object))
   (case (jsc-type-of object)
     ((#:unknown) object)
     ((#:null) #:null)
@@ -1539,7 +1539,7 @@ NOTE: the set of allowed characters in NAME is uncertain."
     (let ((inject-frame-and-world
            (lambda (f w)
              (g-log "Injecting the extension API into ~s world"
-                      (script-world-name w))
+                    (script-world-name w))
              (let ((context (frame-jsc-context f w)))
                (g-log "Tabs is ~s" (hash-ref *apis* "tabs"))
                ;; This is to identify which extension the context
@@ -1576,13 +1576,13 @@ NOTE: the set of allowed characters in NAME is uncertain."
          (param-jsc (json->jsc param-string)))
     (g-log "Got a message '~s' with content
 '~s'"
-             name
-             param-string)
+           name
+           param-string)
     (cond
      ((string=? name "addExtension")
       (g-log "Building extension with '~s' name and ~s contents"
-               (jsc-property param-jsc "name")
-               (jsc->alist param-jsc))
+             (jsc-property param-jsc "name")
+             (jsc->alist param-jsc))
       ;; TODO: de-inject the extension.
       (hash-set! *web-extensions* (jsc-property param-jsc "name")
                  (make-web-extension param-jsc))
@@ -1603,7 +1603,7 @@ NOTE: the set of allowed characters in NAME is uncertain."
   ;; Watch out: this one if NULL more often than not!
   (when (pointer/false redirected-response)
     (g-log "Got a redirection response for '~s' and status ~d"
-             (response-uri redirected-response) (response-status-code redirected-response)))
+           (response-uri redirected-response) (response-status-code redirected-response)))
   ;; 1 = Stop processing, terminate the view.
   ;; 0 = Continue processing.
   0)
