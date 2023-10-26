@@ -837,6 +837,7 @@ Sends the message with NAME name and ARGS as content."
 (define (event-run event args)
   "Run all EVENT listeners on ARGS (JSC array).
 Implicitly uses `event-callback' and `event-listeners'."
+  (g-log "Running event ~s with args ~s" event args)
   (map (lambda (l)
          ((event-callback event) event (car l) (cdr l) args))
        (event-listeners event))
@@ -1078,10 +1079,12 @@ return a JSCValue!"
      class "addListener"
      (lambda* (event listener #:rest args)
        (let ((event (pointer->scm event)))
+         (g-log "Pushing a new listener ~s into ~s event" listener event)
          (event-listeners-set!
           event
-          (cons (cons listener (remove jsc-undefined? args))
-                (event-listeners event))))
+          (cons (cons listener (or (remove jsc-undefined? args) '()))
+                (event-listeners event)))
+         (g-log "Listeners are ~s now" (event-listeners event)))
        (make-jsc-null))
      ;; To be safe, because addListener can have arbitrary number of
      ;; args (across all the APIs it's 2 args at most, though).
