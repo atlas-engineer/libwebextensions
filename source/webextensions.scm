@@ -1036,7 +1036,7 @@ return a JSCValue!"
          (g-type-pointer 68)
          (constructor
           ((foreign-fn "jsc_class_add_constructor"
-                       (append `(* * * * * ,unsigned-int ,unsigned-int *))
+                       (append `(* * * * * ,unsigned-int ,unsigned-int * *))
                        '*)
            ;; Class and (automatic) class name.
            class %null-pointer
@@ -1070,9 +1070,9 @@ return a JSCValue!"
             '(*)
             void)
            ;; Return type and arg num&types.
-           g-type-pointer 1
+           g-type-pointer 2
            ;; Means that the callback has to be a JS function.
-           jsc-type)))
+           jsc-type jsc-type)))
     (g-log "Constructor created")
     (jsc-context-value-set! "ExtEvent" constructor context)
     (jsc-class-add-method!
