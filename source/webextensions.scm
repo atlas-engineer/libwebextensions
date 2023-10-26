@@ -802,7 +802,7 @@ Sends the message with NAME name and ARGS as content."
 (define *events* (list))
 
 (define-record-type <event>
-  (make-event% name callback context)
+  (make-event% name callback context listeners)
   event?
   ;; Name of the event prefixed with the API it belongs to
   ;; i.e. "tabs.onMoved". Useful when finding all the events with the
@@ -829,8 +829,9 @@ Sends the message with NAME name and ARGS as content."
   (listeners event-listeners event-listeners-set!))
 
 (define (make-event name callback context)
-  (let ((event (make-event% name callback context)))
+  (let ((event (make-event% name callback context '())))
     (set! *events* (cons event *events*))
+    (g-log "Events are ~s now" *events*)
     event))
 
 (define (event-run event args)
