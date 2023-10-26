@@ -1593,7 +1593,8 @@ NOTE: the set of allowed characters in NAME is uncertain."
        (lambda (event)
          (when (string=? (event-name event) (jsc-property param-jsc "name"))
            (event-run event (jsc->list% (jsc-property% param-jsc "args")))))
-       *events*)))
+       *events*)
+      (message-reply message)))
     1))
 
 (define (send-request-callback page request redirected-response)
