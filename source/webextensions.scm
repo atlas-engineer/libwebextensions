@@ -518,10 +518,8 @@ JSC value pointers."
   "Convert OBJECT (JSC array) to Scheme list.
 But! don't convert array elements, leaving them JSCValues."
   (let rec ((idx 0))
-    (g-log "Running jsc->list%")
     (if (jsc-property? object idx)
         (begin
-          (g-log "Getting property ~s" idx)
           (cons (jsc-property% object idx)
                 (rec (1+ idx))))
         '())))
@@ -704,8 +702,6 @@ already and is returned."
 (define* (jsc->scm object)
   "Convert JSCValue OBJECT to a Scheme value.
 Does not support objects and functions yet."
-  (g-log "Try converting object ~s of type ~s to Scheme val"
-         object (jsc-type-of object))
   (case (jsc-type-of object)
     ((#:unknown) object)
     ((#:null) #:null)
