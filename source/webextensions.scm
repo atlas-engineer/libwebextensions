@@ -953,16 +953,21 @@ return a JSCValue!"
                          (let* ((callback
                                  (if (eq? #t function)
                                      default-event-callback
-                                     function)))
+                                     function))
+                                (event-jsc-object #f))
                            (jsc-class-add-property!
                             class-obj name
                             (lambda (instance)
-                              (jsc-constructor-call
-                               (jsc-context-value% "ExtEvent")
-                               (string-append property "." name)
-                               (number->string
-                                (pointer-address
-                                 (scm->pointer callback)))))))))
+                              (or event-jsc-object
+                                  (begin
+                                    (set! event-jsc-object
+                                          (jsc-constructor-call
+                                           (jsc-context-value% "ExtEvent")
+                                           (string-append property "." name)
+                                           (number->string
+                                            (pointer-address
+                                             (scm->pointer callback)))))
+                                    event-jsc-object)))))))
                        (add-methods/properties (cdr meths/props)))))))
          (add-methods/properties methods)
          (jsc-context-value-set! class constructor context)
