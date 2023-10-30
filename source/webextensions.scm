@@ -1641,5 +1641,5 @@ NOTE: the set of allowed characters in NAME is uncertain."
   (g-signal-connect
    extension "user-message-received"
    (procedure->pointer*
-    message-received-callback '(* *) unsigned-int))
+    message-received-callback '(* *) void))
   (g-log "WebExtensions Library handlers installed."))
