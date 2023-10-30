@@ -1581,13 +1581,13 @@ NOTE: the set of allowed characters in NAME is uncertain."
   (let* ((name (message-name message))
          (param-string (or (g-variant-string (message-params message)) ""))
          (param-jsc (json->jsc param-string)))
-    (g-log "Got a message '~s' with content
-'~s'"
+    (g-log "Got a message ~s with content
+~s"
            name
            param-string)
     (cond
      ((string=? name "addExtension")
-      (g-log "Building extension with '~s' name and ~s contents"
+      (g-log "Building extension with ~s name and ~s contents"
              (jsc-property param-jsc "name")
              (jsc->alist param-jsc))
       ;; TODO: de-inject the extension.
