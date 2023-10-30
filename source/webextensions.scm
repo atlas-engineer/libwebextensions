@@ -667,11 +667,17 @@ already and is returned."
    ((number? object) (make-jsc-number object context))
    ((string? object) (make-jsc-string object context))
    ((vector? object) (make-jsc-array object context))
-   ;; Dotted alist
+   ;; Dotted alist. Ambiguous behavior: {} is interpreted as [],
+   ;; because it's converted to a null-list? It's pretty benign, given
+   ;; that JS doesn't really distinguish between {} and [] in most
+   ;; cases. But still, an imperfect behavior.
    ((and (list? object)
          (not (null-list? object))
-         (list? (car object))
-         (not (list? (cdr (car object)))))
+         (every list? object)
+         (any
+          (lambda (pair)
+            (not (list? (cdr pair))))
+          object))
     (make-jsc-object %null-pointer object context))
    ((list? object) (make-jsc-array object context))
    ((procedure? object) (make-jsc-function #f object #:context context))))
