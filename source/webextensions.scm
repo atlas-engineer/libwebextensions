@@ -983,7 +983,8 @@ return a JSCValue!"
   (list "removeCSS" #:method #t 3)
   (list "get" #:method #t 2)
   (list "getCurrent" #:method #t 1)
-  (list "print" #:method #t 2))
+  (list "print" #:method #t 2)
+  (list "onActivated" #:event #t))
 
 (define-api "runtime" "Runtime"
   (list "getPlatformInfo" #:method #t 1)
