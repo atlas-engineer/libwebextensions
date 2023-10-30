@@ -436,6 +436,8 @@ context it belongs to."
 (define (jsc-string? jsc)
   (positive? ((foreign-fn "jsc_value_is_string" '(*) unsigned-int) jsc)))
 (define (jsc->string jsc)
+  "Return a string representation for JSC.
+Should mainly be used on string JSCValues, but works on any of them."
   (pointer->string*
    ((foreign-fn "jsc_value_to_string" (list '*) '*) jsc)))
 
