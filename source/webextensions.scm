@@ -725,13 +725,14 @@ Does not support objects and functions yet."
   ((foreign-fn "jsc_value_new_from_json" '(* *) '*)
    context (string->pointer* json)))
 
-(define (jsc->json jsc-value)
+(define* (jsc->json jsc-value #:optional (indent 0))
   "Convert a JSC-VALUE into a JSON string.
+INDENT is the pretty indentation level. Defaults to non-pretty 0.
 BEWARE: undefined is not supported (due to JSON standard excluding it)
 and leads to weird behaviors."
   (pointer->string*
    ((foreign-fn "jsc_value_to_json" (list '* unsigned-int) '*)
-    jsc-value 0)))
+    jsc-value indent)))
 
 ;;; Threading primitives
 
