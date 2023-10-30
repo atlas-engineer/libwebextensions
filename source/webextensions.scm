@@ -1601,6 +1601,8 @@ NOTE: the set of allowed characters in NAME is uncertain."
          (when (string=? (event-name event) (jsc-property param-jsc "name"))
            (event-run event (jsc->list% (jsc-property% param-jsc "args")))))
        *events*)
+      (message-reply message))
+     (else
       (message-reply message)))
     1))
 
