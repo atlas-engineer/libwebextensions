@@ -844,7 +844,13 @@ Sends the message with NAME name and ARGS as content."
 Implicitly uses `event-callback' and `event-listeners'."
   (g-log "Running event ~s with args ~s" event args)
   (map (lambda (l)
-         ((event-callback event) event (car l) (cdr l) args))
+         ((event-callback event)
+          event (car l) (cdr l)
+          (map (lambda (a)
+                 ;; To ensure that listener and arguments are all in
+                 ;; the same context.
+                 (json->jsc (jsc->json a) (jsc-context (car l))))
+               args)))
        (event-listeners event))
   #f)
 
@@ -947,15 +953,16 @@ return a JSCValue!"
                          (let* ((callback
                                  (if (eq? #t function)
                                      default-event-callback
-                                     function))
-                                (event (jsc-constructor-call
-                                        (jsc-context-value% "ExtEvent" context)
-                                        (string-append property "." name)
-                                        (number->string
-                                         (pointer-address
-                                          (scm->pointer callback))))))
+                                     function)))
                            (jsc-class-add-property!
-                            class-obj name (lambda (instance) event)))))
+                            class-obj name
+                            (lambda (instance)
+                              (jsc-constructor-call
+                               (jsc-context-value% "ExtEvent")
+                               (string-append property "." name)
+                               (number->string
+                                (pointer-address
+                                 (scm->pointer callback)))))))))
                        (add-methods/properties (cdr meths/props)))))))
          (add-methods/properties methods)
          (jsc-context-value-set! class constructor context)
