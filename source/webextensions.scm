@@ -804,7 +804,7 @@ Sends the message with NAME name and ARGS as content."
 
 ;;; WebExtensions Events
 
-(define *events* (list))
+(define *events* (make-hash-table))
 
 (define-record-type <event>
   (make-event% name callback context listeners)
@@ -835,7 +835,7 @@ Sends the message with NAME name and ARGS as content."
 
 (define (make-event name callback context)
   (let ((event (make-event% name callback context '())))
-    (set! *events* (cons event *events*))
+    (hash-set! *events* event event)
     (g-log "Events are ~s now" *events*)
     event))
 
@@ -1081,10 +1081,7 @@ return a JSCValue!"
            ;; GNotifyDestroy
            (procedure->pointer*
             (lambda (event-ptr)
-              (remove! (lambda (elem)
-                         (eq? (pointer->scm event-ptr)
-                              elem))
-                       *events*))
+              (hash-remove! *events* (pointer->scm event-ptr)))
             '(*)
             void)
            ;; Return type and arg num&types.
