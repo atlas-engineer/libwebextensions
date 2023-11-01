@@ -731,7 +731,7 @@ and leads to weird behaviors."
    ((foreign-fn "jsc_value_to_json" (list '* unsigned-int) '*)
     jsc-value indent)))
 
-;;; Threading primitives
+;;; JS non-primitive objects
 
 (define* (make-jsc-error message #:optional (context (jsc-context-get/make)))
   "Create a JS error with MESSAGE."
@@ -860,7 +860,7 @@ Implicitly uses `event-callback' and `event-listeners'."
   (apply jsc-function-call listener args)
   (make-jsc-null (jsc-context listener)))
 
-;;; Webkit extensions API
+;;; WebExtensions APIs
 
 ;; Table from browser subproperty name to the injection function.
 (define *apis* (make-hash-table))
