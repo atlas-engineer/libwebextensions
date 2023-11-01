@@ -607,6 +607,7 @@ Applies FUNCTION-NAME to INITIAL-ARGS and ARGS."
          (jsc-type ((foreign-fn "jsc_value_get_type" '() '*)))
          (context (jsc-context (first initial-args)))
          (_ (g-log "Context is ~s" context))
+         (_ (jsc-context-exception-clear! context))
          (final-args (fold (lambda (a l)
                              (append l (list jsc-type (scm->jsc a))))
                            '()
@@ -630,11 +631,11 @@ Applies FUNCTION-NAME to INITIAL-ARGS and ARGS."
                    ;; G_TYPE_NONE (hopefully portable)
                    (list 4))))
          (_ (g-log "Got value ~s of type ~a" value (jsc-type-of value))))
-    ;; (and-let* ((exception (pointer/false (jsc-context-exception context))))
-    ;;   (error (string-append
-    ;;           "JS " (jsc-exception-name exception) " in " function-name ": "
-    ;;           (jsc-exception-message exception) "\n"
-    ;;           (jsc-exception-report exception))))
+    (and-let* ((exception (pointer/false (jsc-context-exception context))))
+      (g-log (string-append
+              "JS " (jsc-exception-name exception) " in " function-name ": "
+              (jsc-exception-message exception) "\n"
+              (jsc-exception-report exception))))
     value))
 
 (define* (jsc-function-call function #:rest args)
