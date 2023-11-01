@@ -1080,11 +1080,13 @@ return a JSCValue!"
            ;; User data
            %null-pointer
            ;; GNotifyDestroy
-           (procedure->pointer*
-            (lambda (event-ptr)
-              (hash-remove! *events* (pointer->scm event-ptr)))
-            '(*)
-            void)
+           ;; Commented-out until event disappearance is resolved.
+           ;; (procedure->pointer*
+           ;;  (lambda (event-ptr)
+           ;;    (hash-remove! *events* (pointer->scm event-ptr)))
+           ;;  '(*)
+           ;;  void)
+           %null-pointer
            ;; Return type and arg num&types.
            g-type-pointer 2
            ;; Means that the callback has to be a JS function.
