@@ -1376,6 +1376,54 @@ Alist tails are lists of string for values of headers."
   (pointer->string*
    ((foreign-fn "webkit_uri_response_get_suggested_filename" '(*) '*) response)))
 
+;; WebKitHitTestResult
+
+(define +htr-context-document+ 2)
+(define +htr-context-link+ 4)
+(define +htr-context-image+ 8)
+(define +htr-context-media+ 16)
+(define +htr-context-editable+ 32)
+(define +htr-context-scrollbar+ 64)
+(define +htr-context-selection+ 128)
+
+(define (htr-context htr)
+  ((foreign-fn "webkit_hit_test_result_get_context" '(*) unsigned-int)
+   htr))
+
+(define (htr-context? htr context)
+  (positive? (logand context (htr-context htr))))
+
+(define (htr-uri htr)
+  (cond
+   ((hit-test-result-context? htr +htr-context-link+)
+    (pointer->string*
+     ((foreign-fn "webkit_hit_test_result_get_link_uri"
+                  '(*) '(*))
+      htr)))
+   ((hit-test-result-context? htr +htr-context-link+)
+    (pointer->string*
+     ((foreign-fn "webkit_hit_test_result_get_image_uri"
+                  '(*) '(*))
+      htr)))
+   ((hit-test-result-context? htr +htr-context-media+)
+    (pointer->string*
+     ((foreign-fn "webkit_hit_test_result_get_media_uri"
+                  '(*) '(*))
+      htr)))
+   (else #f)))
+
+(define (htr-link-title htr)
+  (pointer->string*
+   ((foreign-fn "webkit_hit_test_result_get_link_title"
+                '(*) '(*))
+    htr)))
+
+(define (htr-link-label htr)
+  (pointer->string*
+   ((foreign-fn "webkit_hit_test_result_get_link_label"
+                '(*) '(*))
+    htr)))
+
 ;; URI parsing
 
 (define (parse-uri uri-string)
