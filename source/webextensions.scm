@@ -1657,8 +1657,8 @@ NOTE: the set of allowed characters in NAME is uncertain."
       (message-reply message))
      ((string=? name "event")
       (g-log "Got ~s event" (jsc-property param-jsc "name"))
-      (map
-       (lambda (event)
+      (hash-map->list
+       (lambda (_ event)
          (when (string=? (event-name event) (jsc-property param-jsc "name"))
            (event-run event (jsc->list% (jsc-property% param-jsc "args")))))
        *events*)
