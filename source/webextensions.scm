@@ -990,6 +990,13 @@ return a JSCValue!"
   (list "get" #:method #t 2)
   (list "getCurrent" #:method #t 1)
   (list "print" #:method #t 2)
+  (list "getZoom" #:method #t 2)
+  (list "setZoom" #:method #t 3)
+  (list "goForward" #:method #t 2)
+  (list "goBack" #:method #t 2)
+  (list "reload" #:method #t 3)
+  (list "remove" #:method #t 2)
+  (list "warmup" #:method #t 2)
   (list "onActivated" #:event #t))
 
 (define-api "runtime" "Runtime"
