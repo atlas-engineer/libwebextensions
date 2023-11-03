@@ -1264,6 +1264,11 @@ Defaults to 1000 (WEBKIT_CONTEXT_MENU_ACTION_CUSTOM)."
   (when page
     ((foreign-fn "webkit_web_page_get_id" '(*) uint64) page)))
 
+(define* (page-uri #:optional (page *page*))
+  (when page
+    (pointer->string*
+     ((foreign-fn "webkit_web_page_get_uri" '(*) '*) page))))
+
 (define* (page-send-message message
                             #:optional (callback %null-pointer) (page *page*))
   (typecheck 'page-send-message callback pointer? false? (procedure-of-arity? 2))
