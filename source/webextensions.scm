@@ -1022,6 +1022,18 @@ return a JSCValue!"
   (list "warmup" #:method #t 2)
   ;; TODO: Until working events support.
   ;; (list "onActivated" #:event #t)
+  ;; (list "onActiveChanged" #:event #t)
+  ;; (list "onAttached" #:event #t)
+  ;; (list "onCreated" #:event #t)
+  ;; (list "onDetached" #:event #t)
+  ;; (list "onHighlightChanged" #:event #t)
+  ;; (list "onHighlighted" #:event #t)
+  ;; (list "onMoved" #:event #t)
+  ;; (list "onRemoved" #:event #t)
+  ;; (list "onReplaced" #:event #t)
+  ;; (list "onSelectionChanged" #:event #t)
+  ;; (list "onUpdated" #:event #t)
+  ;; (list "onZoomChange" #:event #t)
   )
 
 (define-api "runtime" "Runtime"
