@@ -1397,17 +1397,17 @@ Alist tails are lists of string for values of headers."
 
 (define (htr-uri htr)
   (cond
-   ((hit-test-result-context? htr +htr-context-link+)
+   ((htr-context? htr +htr-context-link+)
     (pointer->string*
      ((foreign-fn "webkit_hit_test_result_get_link_uri"
                   '(*) '(*))
       htr)))
-   ((hit-test-result-context? htr +htr-context-link+)
+   ((htr-context? htr +htr-context-link+)
     (pointer->string*
      ((foreign-fn "webkit_hit_test_result_get_image_uri"
                   '(*) '(*))
       htr)))
-   ((hit-test-result-context? htr +htr-context-media+)
+   ((htr-context? htr +htr-context-media+)
     (pointer->string*
      ((foreign-fn "webkit_hit_test_result_get_media_uri"
                   '(*) '(*))
