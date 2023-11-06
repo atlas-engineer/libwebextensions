@@ -109,9 +109,16 @@ arglist."
 (define* (g-log format-string . args)
   "Print values to inferior shell using Glib primitives and `format'."
   ((foreign-fn "g_print" '(*) void)
-   (string->pointer (string-append (strftime "[%T] " (localtime (current-time)))
-                                   (apply format #f format-string args)
-                                   "\n"))))
+   (string->pointer
+    (string-append
+     (format #f "~&[~@[~a~]|~@[~a~]|~a] "
+             (when *page*
+               (page-id *page*))
+             (and *page*
+                  (page-uri *page*))
+             (strftime "%T" (localtime (current-time))))
+     (apply format #f format-string args)
+     "\n"))))
 
 (define (make-g-variant string-or-nothing)
   "Create and return a new maybe string (ms) GVariant."
