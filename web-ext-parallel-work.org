@@ -1,0 +1,193 @@
+#+TITLE:Parallelizing WebExtensions work
+
+It's possible to split up some work on WebExtensions now—I've cleaned
+the code on both Nyxt and Scheme side, so adding new functions is
+often a matter of adding a name on the Scheme side and adding a
+handler in Nyxt.
+
+Here's a breakdown for what you can add and how, so that we have more
+APIs covered. Ordered by ease of adding/testing/merging. But, before
+that, note on testing:
+
+* How to test the added APIs
+
+WebExtensions are quite hairy in the architecture, so the simplest
+testing option is using and existing extension and parasitically
+adding the APIs you need to test. Here's my workflow:
+- Clone the [[https://github.com/atlas-engineer/libwebextensions][libwebextensions repo]].
+- Build libwebextensions.
+- Copy the webextensions.so into the GTK extensions directory of Nyxt.
+- Checkout Nyxt's ~switch-to-new-webext-library~ branch.
+- Clone the [[https://github.com/mdn/webextensions-examples][webextensions-examples repo]] somewhere on your machine.
+- Load the extension and enable it in your Nyxt config.lisp:
+#+begin_src lisp
+  ;; Path to test extension. Borderify is the simplest one.
+  (nyxt/web-extensions:load-web-extension test-ext #p"/path/to/webextensions-examples/borderify/")
+  ;; Enable the extension by default.
+  (define-configuration web-buffer
+    ((default-modes (cons 'test-ext %slot-value%))))
+#+end_src
+- Edit the extension script files to include the calls to your new
+  APIs. For Borderify, where I test new APIs, the file already looks
+  like a pile with all the methods I test:
+#+begin_src js
+  browser.tabs.insertCSS({"code": "* {border: 5px solid red;}"});
+
+  console.log("Resolved URL is " + browser.runtime.getURL("hello.js"));
+
+  browser.management.getSelf().then((me) => {console.log(`Hi, I am ${me.name}!`);});
+  browser.tabs.create({
+      url: "https://example.org",
+      active: true,
+      muted: true,
+  }).then((v) => {
+      console.log(`Created a buffer with ${v.url} URL and ${v.id} ID!`);
+      browser.tabs.executeScript(v.id, {"code": "document.body.style.color = \"blue\";"});}
+  ).catch((e) => {console.log("Got error " + e)});
+  console.log("Getting an OS");
+  browser.runtime.getPlatformInfo().then((v) => {console.log(`Running on ${v.os} on top of ${v.arch}.`);});
+  browser.runtime.getBrowserInfo().then((v) => {console.log(`Running in ${v.name} browser by ${v.vendor}.`);});
+  browser.tabs.query({}).then((tabs) => {console.log(`tabs are ${JSON.stringify(tabs)}.`);});
+  browser.tabs.executeScript({"code": "document.body.style.backgroundColor = \"green\";"});
+#+end_src
+- Launch Nyxt with the edited config.
+- Navigate to some page that the extension activates its content
+  scripts (that you've just edited) on. In case of Borderify, it's any
+  page under mozilla.org. So https://mozilla.org it is.
+- Observe the effects of extension APIs, if observable. Changing
+  borders, text color etc.
+- Check the inferior Lisp REPL for Scheme and JS outputs.
+- Debug when necessary, using ~g-print~ Scheme function for reliable
+  logging.
+
+
+* APIs and how to add them
+
+Most of the infrastructure for most of the APIs is already in place,
+so 70% of the [[https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API][MDN-documented APIs]] should be implementable, at least on
+the libwebextensions side. Some are harder than the others, though.
+
+** Easy: Properties
+
+Properties are slots/fields of JavaScript objects. They have a
+value. One can get this value and sometimes set it. Adding properties
+is a Scheme side only work. Here's how one can add a constant
+property:
+#+begin_src scheme
+  ;; Implying the tabs API is defined
+  (define-api "tabs" "Tabs"
+    ;; Getter returning a constant value. No setter.
+    (list "TAB_ID_NONE" #:property (lambda (instance) -1)))
+#+end_src
+
+Modifiable properties with setters are possible too, although rarely
+needed:
+#+begin_src scheme
+  ;; Closure as the simplest way to retain state, for example.
+  (let ((value 8))
+    (define-api "tabs" "Tabs"
+      (list "TAB_ID_NONE" #:property
+            ;; Getter.
+            (lambda (instance) value)
+            ;; Setter.
+            (lambda (instance new) (set! value (jsc->scm new))))))
+#+end_src
+
+** Easy: Promise-based methods
+
+Most WebExtensions JS methods return a Promise object waiting until
+the browser responds with a value. Most of the infrastructure is
+already in place, so you only have to add the response handler on the
+Nyxt side. In Scheme, add
+#+begin_src scheme
+  (define-api "tabs" "Tabs"
+    ;; New method sending a message to browser and returning a Promise.
+    ;; 2 is the number of arguments: Tabs instance and another argument.
+    ;; Arguments after the first one are passed to Nyxt.
+    (list "create" #:method #t 2))
+#+end_src
+
+And then, on the Nyxt side (on ~switch-to-new-webext-library~ branch),
+add a handling code into ~%process-user-message~ function:
+#+begin_src lisp
+  (defun %process-user-message (extension name args)
+    "..."
+    (str:string-case name
+      ...
+      ("tabs.create"
+       (do-something-and-return-values args))))
+#+end_src
+
+Nyxt-side handler can take any amount of time it needs—it's run
+asynchronously. The handler can return any JSON-encodeable
+values. Notice the plural: multiple values are supported and
+expected. Refer to the method documentation on MDN for what it should
+return. Does the promise handler accept zero, one, five values? Lisp
+handler should return as much.
+
+It's possible to return less or more—JavaScript is flexible enough for
+that. But that's always a risk, so don't test the limits of WebKit 😉
+
+** Medium: non-Promise methods
+
+There are methods that return values immediately or that go beyond the
+regular Promise pattern. For these, you'd have to provide a custom
+callback:
+
+#+begin_src scheme
+  (define-api "runtime" "Runtime"
+    (list "getURL" #:method
+          ;; Callback. INSTANCE is the Runtime instance, PATH is the
+          ;; only argument.
+          (lambda (instance path)
+            ;; Body of the method, returning a JSC or JSON-encodeable
+            ;; value.
+            )
+          ;; Number of args, including the Runtime instance.
+          2))
+#+end_src
+
+** Medium: Adding new APIs
+
+In the simplest case, adding a new API is just:
+#+begin_src scheme
+  (define-api "alerts" "Alerts"
+    ;; Fill in the methods and properties.
+    )
+#+end_src
+and
+#+begin_src scheme
+  ((hash-ref *apis* "alerts") context)
+#+end_src
+in ~make-web-extension~. That'll add the API into the
+extension-specific JavaScript world reliably.
+
+What's hard is filling in the methods, because not all APIs map well
+to Nyxt, and some require changes for proper working. "bookmarks" API
+requires persistent IDs for bookmarks, for example. Easy to add, but
+annoying to have to.
+
+** Hard: non-informational APIs
+
+Most of the WebExtensions APIs are informational, like [[https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/bookmarks][bookmarks]] and
+[[https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/history][history]]. These are easy to support: just add a method and Nyxt-side
+handler returning the processing results to the extension. Some
+methods there might modify the state of the browser, but that's mostly
+benign and implementable.
+
+What's hard is more involved renderer-dependent APIs, like
+[[https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/webRequest][webRequest]]. I'll work on these after Events and messages.
+
+
+** Not yet: Events
+
+I'm working on events implementation, so that ~tabs.onUpdated~ can be
+added in the same convenient manner as the methods/properties
+above. Until then—no events.
+
+** Maybe not: Types
+
+There is often a "Types" section in API listings, like in [[https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/cookies#types][cookies
+API]]. I'm not sure whether to support these: they seem to be purely
+informational, especially in the weakly typed JavaScript. Even if they
+are necessary, they are really low priority.
