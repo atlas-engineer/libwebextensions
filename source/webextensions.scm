@@ -852,13 +852,7 @@ Sends the message with NAME name and ARGS as content."
 Implicitly uses `event-callback' and `event-listeners'."
   (g-log "Running event ~s with args ~s" event args)
   (map (lambda (l)
-         ((event-callback event)
-          event (car l) (cdr l)
-          (map (lambda (a)
-                 ;; To ensure that listener and arguments are all in
-                 ;; the same context.
-                 (json->jsc (jsc->json a) (jsc-context (car l))))
-               args)))
+         ((event-callback event) event (car l) (cdr l) args))
        (event-listeners event))
   #f)
 
