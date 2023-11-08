@@ -812,7 +812,7 @@ Sends the message with NAME name and ARGS as content."
 
 ;;; WebExtensions Events
 
-(define *events* (make-hash-table))
+(define *events* (list))
 
 (define-record-type <event>
   (make-event% name callback context listeners)
@@ -843,7 +843,7 @@ Sends the message with NAME name and ARGS as content."
 
 (define (make-event name callback context)
   (let ((event (make-event% name callback context '())))
-    (hash-set! *events* event event)
+    (set! *events* (cons event *events*))
     (g-log "Events are ~s now" *events*)
     event))
 
@@ -1128,7 +1128,10 @@ return a JSCValue!"
            ;; Commented-out until event disappearance is resolved.
            ;; (procedure->pointer*
            ;;  (lambda (event-ptr)
-           ;;    (hash-remove! *events* (pointer->scm event-ptr)))
+           ;;    (remove! (lambda (elem)
+           ;;               (eq? (pointer->scm event-ptr)
+           ;;                    elem))
+           ;;             *events*))
            ;;  '(*)
            ;;  void)
            %null-pointer
@@ -1707,8 +1710,8 @@ NOTE: the set of allowed characters in NAME is uncertain."
       (message-reply message))
      ((string=? name "event")
       (g-log "Got ~s event" (jsc-property param-jsc "name"))
-      (hash-map->list
-       (lambda (_ event)
+      (map
+       (lambda (event)
          (when (string=? (event-name event) (jsc-property param-jsc "name"))
            (event-run event (jsc->list% (jsc-property% param-jsc "args")))))
        *events*)
