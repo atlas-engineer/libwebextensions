@@ -812,10 +812,10 @@ Sends the message with NAME name and ARGS as content."
 
 ;;; WebExtensions Events
 
-(define *events* (list))
+(define *events* (make-hash-table))
 
 (define-record-type <event>
-  (make-event% name callback context listeners)
+  (make-event name callback context listeners)
   event?
   ;; Name of the event prefixed with the API it belongs to
   ;; i.e. "tabs.onMoved". Useful when finding all the events with the
@@ -840,12 +840,6 @@ Sends the message with NAME name and ARGS as content."
   ;; function pointer, and ARGS is a JSC array args provided when
   ;; initializing
   (listeners event-listeners event-listeners-set!))
-
-(define (make-event name callback context)
-  (let ((event (make-event% name callback context '())))
-    (set! *events* (cons event *events*))
-    (g-log "Events are ~s now" *events*)
-    event))
 
 (define (event-run event args)
   "Run all EVENT listeners on ARGS (JSC array).
@@ -952,10 +946,7 @@ return a JSCValue!"
                          ;; encapsulate that into event
                          ;; construction. But it's too ugly for that
                          ;; at the moment (see `inject-events').
-                         (let* ((callback
-                                 (if (eq? #t function)
-                                     default-event-callback
-                                     function))
+                         (let* ((callback function)
                                 (event-jsc-object #f))
                            (jsc-class-add-property!
                             class-obj name
@@ -965,10 +956,11 @@ return a JSCValue!"
                                     (set! event-jsc-object
                                           (jsc-constructor-call
                                            (jsc-context-value% "ExtEvent")
-                                           (string-append property "." name)
-                                           (number->string
-                                            (pointer-address
-                                             (scm->pointer callback)))))
+                                           (string-append property "." name)))
+                                    (unless (eq? #t callback)
+                                      (event-callback-set!
+                                       (hash-ref *events* event-jsc-object)
+                                       function))
                                     event-jsc-object)))))))
                        (add-methods/properties (cdr meths/props)))))))
          (add-methods/properties methods)
@@ -1100,28 +1092,21 @@ return a JSCValue!"
   (g-log "Injecting event class into ~s" context)
   (let* ((class (jsc-class-register! "ExtEvent" context))
          (jsc-type ((foreign-fn "jsc_value_get_type" '() '*)))
-         (g-type-pointer 68)
          (constructor
           ((foreign-fn "jsc_class_add_constructor"
-                       (append `(* * * * * ,unsigned-int ,unsigned-int * *))
+                       `(* * * * * * ,unsigned-int *)
                        '*)
            ;; Class and (automatic) class name.
            class %null-pointer
            ;; Constructor callback
            (procedure->pointer*
-            (lambda (name callback-address)
-              (scm->pointer
-               (make-event
-                (jsc->string name)
-                (pointer->scm
-                 (make-pointer
-                  (inexact->exact
-                   ;; FIXME: The logic is: we can't pass pointers to
-                   ;; JS constructors (I tried), only return them; we
-                   ;; can safely pass JS strings with pointer
-                   ;; addresses, though.
-                   (string->number (jsc->string callback-address)))))
-                (jsc-context-current)))))
+            (lambda (name)
+              (let ((obj (make-jsc-object class '())))
+                (hash-set!
+                 *events* obj
+                 (make-event name default-event-callback (jsc-context-current) '()))
+                obj))
+            '(*))
            ;; User data
            %null-pointer
            ;; GNotifyDestroy
@@ -1136,22 +1121,18 @@ return a JSCValue!"
            ;;  void)
            %null-pointer
            ;; Return type and arg num&types.
-           g-type-pointer 2
-           ;; Means that the callback has to be a JS function.
-           jsc-type jsc-type)))
+           jsc-type 1 jsc-type)))
     (g-log "Constructor created")
     (jsc-context-value-set! "ExtEvent" constructor context)
     (jsc-class-add-method!
      class "addListener"
      (lambda* (event listener #:rest args)
-       (let ((event (pointer->scm event)))
+       (let ((event (hash-ref *events* event)))
          (g-log "Pushing a new listener ~s into ~s event" listener event)
          (event-listeners-set!
-          event
-          (cons (cons listener (or (remove jsc-undefined? args) '()))
-                (event-listeners event)))
-         (g-log "Listeners are ~s now" (event-listeners event)))
-       (make-jsc-null))
+          event (cons (cons listener (or (remove jsc-undefined? args) '()))
+                      (event-listeners event)))
+         (make-jsc-null)))
      ;; To be safe, because addListener can have arbitrary number of
      ;; args (across all the APIs it's 2 args at most, though).
      #:number-of-args 10)
@@ -1159,21 +1140,21 @@ return a JSCValue!"
     (jsc-class-add-method!
      class "hasListener"
      (lambda (event listener)
-       (let ((event (pointer->scm event)))
-         (make-jsc-boolean (memq listener (map car (event-listeners event)))))))
+       (make-jsc-boolean
+        (memq listener (map car (event-listeners (hash-ref *events* event)))))))
     (g-log "hasListener method added")
     (jsc-class-add-method!
      class "removeListener"
      (lambda (event listener)
-       (let ((event (pointer->scm event)))
+       (let ((scm-event (hash-ref *events* event)))
          (event-listeners-set!
-          event
+          scm-event
           (filter-map
            (lambda (listener+args)
              (if (eq? (car listener+args) listener)
                  #f
                  listener+args))
-           (event-listeners event))))
+           (event-listeners scm-event))))
        (make-jsc-null)))
     (g-log "removeListener method added")
     (g-log "ExtEvent injected into ~s" context)))
@@ -1710,9 +1691,9 @@ NOTE: the set of allowed characters in NAME is uncertain."
       (message-reply message))
      ((string=? name "event")
       (g-log "Got ~s event" (jsc-property param-jsc "name"))
-      (map
-       (lambda (event)
-         (when (string=? (event-name event) (jsc-property param-jsc "name"))
+      (hash-map->list
+       (lambda (js scm)
+         (when (string=? (event-name scm) (jsc-property param-jsc "name"))
            (event-run event (jsc->list% (jsc-property% param-jsc "args")))))
        *events*)
       (message-reply message))
