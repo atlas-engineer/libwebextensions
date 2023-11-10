@@ -1694,7 +1694,7 @@ NOTE: the set of allowed characters in NAME is uncertain."
       (hash-map->list
        (lambda (js scm)
          (when (string=? (event-name scm) (jsc-property param-jsc "name"))
-           (event-run event (jsc->list% (jsc-property% param-jsc "args")))))
+           (event-run scm (jsc->list% (jsc-property% param-jsc "args")))))
        *events*)
       (message-reply message))
      (else
