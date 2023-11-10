@@ -1672,11 +1672,11 @@ NOTE: the set of allowed characters in NAME is uncertain."
 
 ;;; Entry point and signal processors
 
-(define (message-received-callback object message)
+(define (page-message-received-callback object message)
   (let* ((name (message-name message))
          (param-string (or (g-variant-string (message-params message)) ""))
          (param-jsc (json->jsc param-string)))
-    (g-log "Got a message ~s with content
+    (g-log "Got a page message ~s with content
 ~s"
            name
            param-string)
@@ -1689,17 +1689,26 @@ NOTE: the set of allowed characters in NAME is uncertain."
       (hash-set! *web-extensions* (jsc-property param-jsc "name")
                  (make-web-extension param-jsc))
       (message-reply message))
+     (else
+      (message-reply message)))
+    1))
+
+(define (extension-message-received-callback object message)
+  (let* ((name (message-name message))
+         (param-string (or (g-variant-string (message-params message)) ""))
+         (param-jsc (json->jsc param-string)))
+    (g-log "Got an extension message ~s with content
+~s"
+           name
+           param-string)
+    (cond
      ((string=? name "event")
       (g-log "Got ~s event" (jsc-property param-jsc "name"))
       (hash-map->list
        (lambda (js scm)
          (when (string=? (event-name scm) (jsc-property param-jsc "name"))
            (event-run scm (jsc->list% (jsc-property% param-jsc "args")))))
-       *events*)
-      (message-reply message))
-     (else
-      (message-reply message)))
-    1))
+       *events*)))))
 
 (define (send-request-callback page request redirected-response)
   ;; (g-log "Sending a request to '~s'" (request-uri request))
@@ -1719,7 +1728,7 @@ NOTE: the set of allowed characters in NAME is uncertain."
   (g-signal-connect
    page "user-message-received"
    (procedure->pointer*
-    message-received-callback '(* *) unsigned-int))
+    page-message-received-callback '(* *) unsigned-int))
   (g-log "User message handler installed!")
   ;; (g-signal-connect
   ;;  page "send-request"
@@ -1736,5 +1745,5 @@ NOTE: the set of allowed characters in NAME is uncertain."
   (g-signal-connect
    extension "user-message-received"
    (procedure->pointer*
-    message-received-callback '(* *) void))
+    extension-message-received-callback '(* *) void))
   (g-log "WebExtensions Library handlers installed."))
