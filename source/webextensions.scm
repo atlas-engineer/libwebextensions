@@ -805,8 +805,7 @@ Sends the message with NAME name and ARGS as content."
 } closure" context)
      (make-jsc-function
       #f (lambda ()
-           (if result-obj
-               result-obj
+           (or result-obj
                (make-jsc-null context)))
       #:context context))))
 
