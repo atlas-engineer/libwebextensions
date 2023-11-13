@@ -915,6 +915,7 @@ return a JSCValue!"
                           ;; FIXME: Methods should not have
                           ;; optional/rest arguments!!!
                           (lambda* (instance #:rest args)
+                            (g-log "Calling ~a.~a method" property name)
                             (let ((context (jsc-context instance)))
                               (make-message-promise
                                (string-append property "." name)
@@ -950,6 +951,8 @@ return a JSCValue!"
                            (jsc-class-add-property!
                             class-obj name
                             (lambda (instance)
+                              (g-log "Getting ~a.~a event object ~s"
+                                     property name event-jsc-object)
                               (or event-jsc-object
                                   (begin
                                     (set! event-jsc-object
