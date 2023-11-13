@@ -521,6 +521,11 @@ JSC value pointers."
     arr))
 (define (jsc-array? jsc)
   (positive? ((foreign-fn "jsc_value_is_array" '(*) unsigned-int) jsc)))
+(define (jsc-length object)
+  (let rec ((idx 0))
+    (if (jsc-property? object idx)
+        (rec (1+ idx))
+        idx)))
 (define (jsc->list% object)
   "Convert OBJECT (JSC array) to Scheme list.
 But! don't convert array elements, leaving them JSCValues."
