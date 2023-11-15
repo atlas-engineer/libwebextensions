@@ -771,15 +771,23 @@ Sends the message with NAME name and ARGS as content."
        (let ((data (json->jsc (g-variant-string (message-params reply)) context)))
          (g-log "Got ~s data" data)
          (cond
-          ((not (or (jsc-object? data)
+          ;; FIXME: Library sometimes sends random methods with empty
+          ;; data to the browser, and Nyxt obviously errors out and
+          ;; returns null data. Investigate and fix.
+          ((and (not (null-pointer? data))
+                (jsc? data)
+                (or (jsc-object? data)
                     (jsc-null? data)))
-           (error (format
-                   #f "Not a JS object: ~s (~s), cannot pass it to Promise callback"
-                   data (jsc-type-of data))))
+           (set! result-obj data))
           ;; If there was an error, then browser
           ;; returns {"error" : "error message"}
           (else
-           (set! result-obj data))))))
+           (set! result-obj
+                 (make-jsc-object
+                  #f '(("error" . (format
+                                   #f "Not a JS object: ~s (~s), cannot pass it to Promise callback"
+                                   data (jsc-type-of data))))
+                  context)))))))
     (jsc-function-call
      ;; Keep in sync with promise.js.
      (jsc-context-evaluate% "function closure (check) {
@@ -816,7 +824,7 @@ Sends the message with NAME name and ARGS as content."
 
 ;;; WebExtensions Events
 
-(define *events* (make-hash-table))
+(define *events* (list))
 
 (define-record-type <event>
   (make-event name callback context listeners)
@@ -854,10 +862,17 @@ Implicitly uses `event-callback' and `event-listeners'."
        (event-listeners event))
   #f)
 
-(define (default-event-callback event listener initial-args args)
+(define* (default-event-callback event #:rest args)
   ;; Ignoring event and its initial args.
-  (apply jsc-function-call listener args)
-  (make-jsc-null (jsc-context listener)))
+  (let ((listeners (jsc-property% event "listeners")))
+    (g-log "Calling default event callback")
+    (when (positive? (jsc-length listeners))
+      (let rec ((idx 0))
+        (when (< idx (jsc-length listeners))
+          (apply jsc-function-call
+                 (jsc-property% (jsc-property% listeners idx) 0)
+                 args)
+          (rec (1+ idx)))))))
 
 ;;; WebExtensions APIs
 
@@ -887,7 +902,8 @@ where TYPE is one of:
   sending a message and returning a Promise that will be resolved with
   browser reply to the message.
 - #:EVENT---FUNCTION is an event callback. If #T, use the
-  `default-event-callback'. AUX is unused.
+  `default-event-callback'. AUX is the number of values that listener
+  gets. If not provided, defaults to 1.
 
 WARNING: Ensure that FUNCTION and AUX (when #:PROPERTY and provided)
 return a JSCValue!"
@@ -907,8 +923,9 @@ return a JSCValue!"
                             (name (list-ref meth/prop 0))
                             (type (list-ref meth/prop 1))
                             (function (list-ref meth/prop 2))
-                            (aux (when (= 4 (length meth/prop))
-                                   (list-ref meth/prop 3))))
+                            (aux (if (= 4 (length meth/prop))
+                                     (list-ref meth/prop 3)
+                                     #f)))
                        (typecheck 'define-api/add-methods/properties name string?)
                        (typecheck 'define-api/add-methods/properties function
                                   procedure? pointer? boolean?)
@@ -962,12 +979,15 @@ return a JSCValue!"
                                   (begin
                                     (set! event-jsc-object
                                           (jsc-constructor-call
-                                           (jsc-context-value% "ExtEvent")
+                                           (jsc-context-value% "ExtEvent" context)
                                            (string-append property "." name)))
-                                    (unless (eq? #t callback)
-                                      (event-callback-set!
-                                       (hash-ref *events* event-jsc-object)
-                                       function))
+                                    (jsc-property-set!
+                                     event-jsc-object "callback"
+                                     (make-jsc-function
+                                      #f (if (eq? #t function)
+                                             default-event-callback
+                                             function)
+                                      #:context context #:number-of-args (or aux 1)))
                                     event-jsc-object)))))))
                        (add-methods/properties (cdr meths/props)))))))
          (add-methods/properties methods)
@@ -1108,10 +1128,11 @@ return a JSCValue!"
            ;; Constructor callback
            (procedure->pointer*
             (lambda (name)
-              (let ((obj (make-jsc-object class '())))
-                (hash-set!
-                 *events* obj
-                 (make-event name default-event-callback (jsc-context-current) '()))
+              (let ((obj (make-jsc-object
+                          class `(("name" . ,name)
+                                  ("listeners" . #())))))
+                (set! *events* (cons obj *events*))
+                (g-log "Events are ~s now" *events*)
                 obj))
             '(*))
            ;; User data
@@ -1132,36 +1153,41 @@ return a JSCValue!"
     (g-log "Constructor created")
     (jsc-context-value-set! "ExtEvent" constructor context)
     (jsc-class-add-method!
+     class "run"
+     (lambda (event args)
+       (jsc-function-call
+        (jsc-property% event "callback")
+        event
+        (jsc->list% args))))
+    (jsc-class-add-method!
      class "addListener"
      (lambda* (event listener #:rest args)
-       (let ((event (hash-ref *events* event)))
-         (g-log "Pushing a new listener ~s into ~s event" listener event)
-         (event-listeners-set!
-          event (cons (cons listener (or (remove jsc-undefined? args) '()))
-                      (event-listeners event)))
-         (make-jsc-null)))
+       (g-log "Pushing a new listener ~s into ~s event" listener event)
+       (let ((listeners (jsc-property% event "listeners")))
+         (jsc-property-set! listeners (jsc-length listeners) listener))
+       (make-jsc-null))
      ;; To be safe, because addListener can have arbitrary number of
      ;; args (across all the APIs it's 2 args at most, though).
-     #:number-of-args 10)
+     #:number-of-args 2)
     (g-log "addListener method added")
     (jsc-class-add-method!
      class "hasListener"
      (lambda (event listener)
        (make-jsc-boolean
-        (memq listener (map car (event-listeners (hash-ref *events* event)))))))
+        (find (lambda (l)
+                (eq? listener (jsc-property% l 0)))
+              (jsc->list% (jsc-property% event "listeners"))))))
     (g-log "hasListener method added")
     (jsc-class-add-method!
      class "removeListener"
      (lambda (event listener)
-       (let ((scm-event (hash-ref *events* event)))
-         (event-listeners-set!
-          scm-event
-          (filter-map
-           (lambda (listener+args)
-             (if (eq? (car listener+args) listener)
-                 #f
-                 listener+args))
-           (event-listeners scm-event))))
+       (let ((current-listeners (jsc->list% (jsc-property% event "listeners"))))
+         (jsc-property-set!
+          event "listeners"
+          (remove (lambda (ls)
+                    (eq? (jsc-property% ls 0)
+                         listener))
+                  current-listeners)))
        (make-jsc-null)))
     (g-log "removeListener method added")
     (g-log "ExtEvent injected into ~s" context)))
@@ -1681,7 +1707,7 @@ NOTE: the set of allowed characters in NAME is uncertain."
 
 (define (page-message-received-callback object message)
   (let* ((name (message-name message))
-         (param-string (or (g-variant-string (message-params message)) ""))
+         (param-string (or (g-variant-string (message-params message)) "null"))
          (param-jsc (json->jsc param-string)))
     (g-log "Got a page message ~s with content
 ~s"
@@ -1695,6 +1721,17 @@ NOTE: the set of allowed characters in NAME is uncertain."
       ;; TODO: de-inject the extension.
       (hash-set! *web-extensions* (jsc-property param-jsc "name")
                  (make-web-extension param-jsc))
+      (message-reply message))
+     ((string=? name "event")
+      (g-log "Got ~s event" (jsc-property param-jsc "name"))
+      (g-log "Events are ~s" *events*)
+      (map
+       (lambda (event)
+         (when (string=? (jsc-property event "name")
+                         (jsc-property param-jsc "name"))
+           (jsc-object-call-method
+            event "run" (jsc->list% (jsc-property% param-jsc "args")))))
+       *events*)
       (message-reply message))
      (else
       (message-reply message)))
@@ -1711,10 +1748,13 @@ NOTE: the set of allowed characters in NAME is uncertain."
     (cond
      ((string=? name "event")
       (g-log "Got ~s event" (jsc-property param-jsc "name"))
-      (hash-map->list
-       (lambda (js scm)
-         (when (string=? (event-name scm) (jsc-property param-jsc "name"))
-           (event-run scm (jsc->list% (jsc-property% param-jsc "args")))))
+      (g-log "Events are ~s" *events*)
+      (map
+       (lambda (event)
+         (when (string=? (jsc-property event "name")
+                         (jsc-property param-jsc "name"))
+           (jsc-object-call-method
+            event "run" (jsc->list% (jsc-property% param-jsc "args")))))
        *events*)))))
 
 (define (send-request-callback page request redirected-response)
