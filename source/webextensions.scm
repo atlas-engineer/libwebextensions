@@ -862,16 +862,16 @@ Implicitly uses `event-callback' and `event-listeners'."
        (event-listeners event))
   #f)
 
-(define* (default-event-callback event #:rest args)
+(define* (default-event-callback event arg)
   ;; Ignoring event and its initial args.
   (let ((listeners (jsc-property% event "listeners")))
     (g-log "Calling default event callback")
     (when (positive? (jsc-length listeners))
       (let rec ((idx 0))
         (when (< idx (jsc-length listeners))
-          (apply jsc-function-call
-                 (jsc-property% (jsc-property% listeners idx) 0)
-                 args)
+          (jsc-function-call
+           (jsc-property% (jsc-property% listeners idx) 0)
+           arg)
           (rec (1+ idx)))))))
 
 ;;; WebExtensions APIs
@@ -1154,21 +1154,24 @@ return a JSCValue!"
     (jsc-context-value-set! "ExtEvent" constructor context)
     (jsc-class-add-method!
      class "run"
-     (lambda (event args)
+     (lambda* (event arg)
+       (g-log "run-ning the ~s event with ~s" event arg)
        (jsc-function-call
         (jsc-property% event "callback")
         event
-        (jsc->list% args))))
+        arg)))
     (jsc-class-add-method!
      class "addListener"
-     (lambda* (event listener #:rest args)
+     (lambda* (event listener)
        (g-log "Pushing a new listener ~s into ~s event" listener event)
        (let ((listeners (jsc-property% event "listeners")))
-         (jsc-property-set! listeners (jsc-length listeners) listener))
+         (jsc-property-set! listeners (jsc-length listeners)
+                            (make-jsc-array (list listener))))
        (make-jsc-null))
-     ;; To be safe, because addListener can have arbitrary number of
-     ;; args (across all the APIs it's 2 args at most, though).
-     #:number-of-args 2)
+     ;; Use #:number-of-args 10 to be safe, because addListener can
+     ;; have arbitrary number of args (across all the APIs it's 2 args
+     ;; at most, though).
+     )
     (g-log "addListener method added")
     (jsc-class-add-method!
      class "hasListener"
@@ -1729,7 +1732,8 @@ NOTE: the set of allowed characters in NAME is uncertain."
        (lambda (event)
          (when (string=? (jsc-property event "name")
                          (jsc-property param-jsc "name"))
-           (jsc-object-call-method
+           (apply
+            jsc-object-call-method
             event "run" (jsc->list% (jsc-property% param-jsc "args")))))
        *events*)
       (message-reply message))
