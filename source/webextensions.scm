@@ -1733,7 +1733,7 @@ NOTE: the set of allowed characters in NAME is uncertain."
          (when (string=? (jsc-property event "name")
                          (jsc-property param-jsc "name"))
            (jsc-object-call-method
-            event "run" (jsc->list% (jsc-property% param-jsc "args")))))
+            event "run" (jsc-property% (jsc-property% param-jsc "args") 0))))
        *events*)))))
 
 (define (send-request-callback page request redirected-response)
