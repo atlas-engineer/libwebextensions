@@ -220,7 +220,7 @@ Returns #f outside of them."
 
 (define (jsc-context-get/make)
   "Get the current context, or create it if not present."
-  (or (jsc-context-current)
+  (or (pointer/false (jsc-context-current))
       (make-jsc-context)))
 
 (define (jsc-context-global-object context)
