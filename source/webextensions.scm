@@ -984,10 +984,8 @@ return a JSCValue!"
                                     (jsc-property-set!
                                      event-jsc-object "callback"
                                      (make-jsc-function
-                                      #f (if (eq? #t function)
-                                             default-event-callback
-                                             function)
-                                      #:context context #:number-of-args (or aux 1)))
+                                      #f default-event-callback
+                                      #:context context #:number-of-args 1))
                                     event-jsc-object)))))))
                        (add-methods/properties (cdr meths/props)))))))
          (add-methods/properties methods)
@@ -1120,36 +1118,13 @@ return a JSCValue!"
   (let* ((class (jsc-class-register! "ExtEvent" context))
          (jsc-type ((foreign-fn "jsc_value_get_type" '() '*)))
          (constructor
-          ((foreign-fn "jsc_class_add_constructor"
-                       `(* * * * * * ,unsigned-int *)
-                       '*)
-           ;; Class and (automatic) class name.
-           class %null-pointer
-           ;; Constructor callback
-           (procedure->pointer*
-            (lambda (name)
-              (let ((obj (make-jsc-object
-                          class `(("name" . ,name)
-                                  ("listeners" . #())))))
-                (set! *events* (cons obj *events*))
-                (g-log "Events are ~s now" *events*)
-                obj))
-            '(*))
-           ;; User data
-           %null-pointer
-           ;; GNotifyDestroy
-           ;; Commented-out until event disappearance is resolved.
-           ;; (procedure->pointer*
-           ;;  (lambda (event-ptr)
-           ;;    (remove! (lambda (elem)
-           ;;               (eq? (pointer->scm event-ptr)
-           ;;                    elem))
-           ;;             *events*))
-           ;;  '(*)
-           ;;  void)
-           %null-pointer
-           ;; Return type and arg num&types.
-           jsc-type 1 jsc-type)))
+          (jsc-class-make-constructor
+           class #:callback (lambda (name)
+                              (let ((obj (make-jsc-object class `(("name" . ,name)
+                                                                  ("listeners" . #())))))
+                                (set! *events* (cons obj *events*))
+                                (g-log "Events are ~s now" *events*)
+                                obj)))))
     (g-log "Constructor created")
     (jsc-context-value-set! "ExtEvent" constructor context)
     (jsc-class-add-method!
