@@ -762,7 +762,7 @@ Sends the message with NAME name and ARGS as content."
      (let* ((payload
              (make-jsc-object #f '() context)))
        (jsc-property-set!
-        payload "extension" (jsc-context-value "EXTENSION" context))
+        payload "extension" (we-name (context->web-extension context)))
        (jsc-property-set!
         payload "args" (scm->jsc args context))
        (make-message name (jsc->json payload)))
@@ -1075,7 +1075,7 @@ return a JSCValue!"
           (let ((path-string (jsc->string path)))
             (string-append
              "web-extension://"
-             (jsc-context-value "EXTENSION" (jsc-context instance))
+             (we-name (context->web-extension (jsc-context-current)))
              (if (string-prefix? "/" path-string)
                  ""
                  "/")
@@ -1653,12 +1653,18 @@ NOTE: the set of allowed characters in NAME is uncertain."
   (jsc we-jsc)
   (world we-world)
   (browser we-browser we-browser-set!)
-  (permissions we-permissions we-permissions-set!))
+  (permissions we-permissions we-permissions-set!)
+  (jsc-contexts we-jsc-contexts% we-jsc-contexts-set!))
+
+(define (we-jsc-contexts we)
+  ;; TODO: Implement checking for stale contexts and removal of these.
+  (we-jsc-contexts% we))
 
 (define (make-web-extension jsc)
   (let* ((name (jsc-property jsc "name"))
          (world (make-script-world name))
          (extension (make-web-extension% name jsc world)))
+    (we-jsc-contexts-set! extension '())
     (when (jsc-property? jsc "permissions")
       (we-permissions-set! extension (jsc-property jsc "permissions")))
     (hash-set! *web-extensions* name extension)
@@ -1667,11 +1673,9 @@ NOTE: the set of allowed characters in NAME is uncertain."
              (g-log "Injecting the extension API into ~s world"
                     (script-world-name w))
              (let ((context (frame-jsc-context f w)))
+               (we-jsc-contexts-set!
+                extension (cons context (we-jsc-contexts extension)))
                (g-log "Tabs is ~s" (hash-ref *apis* "tabs"))
-               ;; This is to identify which extension the context
-               ;; belongs to. Otherwise it's almost impossible to find
-               ;; the extension given the context.
-               (jsc-context-value-set! "EXTENSION" name context)
                (inject-browser context)
                (inject-events context)
                ((hash-ref *apis* "tabs") context)
@@ -1688,11 +1692,16 @@ NOTE: the set of allowed characters in NAME is uncertain."
         '(* * *) void))
       (g-log "Window object cleared callback set"))))
 
-(define (we-context web-extension)
-  (frame-jsc-context (page-main-frame *page*) (we-world web-extension)))
-
 (define (context->web-extension context)
-  (hash-ref *web-extensions* (jsc-context-value "EXTENSION" context)))
+  (let ((we #f))
+    (hash-map->list
+     (lambda (name extension)
+       ;; Using `we-jsc-contexts%' here so that stale contexts can
+       ;; find their extensions too.
+       (when (memq context (we-jsc-contexts% extension))
+         (set! we extension)))
+     *web-extensions*)
+    we))
 
 ;;; Entry point and signal processors
 
