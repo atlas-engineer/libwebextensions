@@ -938,7 +938,8 @@ return a JSCValue!"
                           ;; optional/rest arguments!!!
                           (lambda* (instance #:rest args)
                             (g-log "Calling ~a.~a method" property name)
-                            (let ((context (jsc-context instance)))
+                            (cond
+                             ((pointer/false (jsc-context instance))
                               (make-message-promise
                                (string-append property "." name)
                                ;; If the argument is not provided,
@@ -949,7 +950,19 @@ return a JSCValue!"
                                           (make-jsc-null context)
                                           a))
                                     args)
-                               #:context context)))
+                               #:context (jsc-context instance)))
+                             ;; FIXME: Some methods get called
+                             ;; randomly out of nowhere. These cases
+                             ;; are distinguishable by invalid
+                             ;; parameters. But it's too alarming to
+                             ;; ignore.
+                             (else
+                              (g-log "Method ~a.~a called with invalid data: ~s ~s"
+                                     property name
+                                     instance (map (lambda (a)
+                                                     (cons (jsc-type-of a) a))
+                                                   args))
+                              (make-jsc-null))))
                           #:number-of-args (or aux 1)))
                         ((eq? #:method type)
                          (g-log "Adding ~s method" name)
