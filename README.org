@@ -16,7 +16,7 @@ In general, you need to have
 
 On Guix, it's enough to:
 #+begin_src sh
-  guix shell pkg-config glib gobject-introspection webkitgtk guile -- make
+  guix shell pkg-config glib gobject-introspection webkitgtk guile -- make clean all
   cp -f webextensions.so /path/to/nyxt/gtk-extensions/
 #+end_src
 
