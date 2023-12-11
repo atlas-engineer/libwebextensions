@@ -7,6 +7,7 @@ Note December 2023: The library is abandoned due to Nyxt team changing prioritie
   - Mostly adding =define-api=-s everywhere.
   - =webRequest= will likely require hooking into =send-request-callback=.
   - See the =web-ext-parallel-work.org= document for how to do that.
+- Address all the =TODO=-s and =FIXME=-s in the codebase.
 
 This library puts Scheme runtime into the =WebKitWebExtension= infrastructure to make WebExtensions API support easier to implement. Scheme code is
 - injected as a C string,
