@@ -1,8 +1,16 @@
 #+TITLE:WebExtensions API support library
 
-This library puts Scheme runtime into the WebKitWebExtension infrastructure to make WebExtensions API support easier to implement. Scheme code is
+Note December 2023: The library is abandoned due to Nyxt team changing priorities. It's incomplete. But should be possible to make it work, given enough work. In particular:
+- Fix/add events support. Right now it's a stub that's implemented with terrible hacks in JavaScript. And it doesn't even work.
+- Support messages.
+- And fill all the APIs in.
+  - Mostly adding =define-api=-s everywhere.
+  - =webRequest= will likely require hooking into =send-request-callback=.
+  - See the =web-ext-parallel-work.org= document for how to do that.
+
+This library puts Scheme runtime into the =WebKitWebExtension= infrastructure to make WebExtensions API support easier to implement. Scheme code is
 - injected as a C string,
-- compiled with libguile,
+- compiled with =libguile=,
 - and then hooked as callbacks into WebKitWebExtension signals.
 
   See the [[Detailed Boot]] section below for more details.

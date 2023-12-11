@@ -12,8 +12,8 @@ that, note on testing:
 * How to test the added APIs
 
 WebExtensions are quite hairy in the architecture, so the simplest
-testing option is using and existing extension and parasitically
-adding the APIs you need to test. Here's my workflow:
+testing option is using an existing extension and parasitically adding
+the APIs you need to test. Here's my workflow:
 - Clone the [[https://github.com/atlas-engineer/libwebextensions][libwebextensions repo]].
 - Build libwebextensions.
 - Copy the webextensions.so into the GTK extensions directory of Nyxt.
@@ -57,7 +57,7 @@ adding the APIs you need to test. Here's my workflow:
 - Observe the effects of extension APIs, if observable. Changing
   borders, text color etc.
 - Check the inferior Lisp REPL for Scheme and JS outputs.
-- Debug when necessary, using ~g-print~ Scheme function for reliable
+- Debug when necessary, using ~g-log~ Scheme function for reliable
   logging.
 
 
@@ -68,11 +68,11 @@ so 70% of the [[https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExte
 the libwebextensions side. Some are harder than the others, though.
 
 ** Easy: Properties
-
 Properties are slots/fields of JavaScript objects. They have a
 value. One can get this value and sometimes set it. Adding properties
-is a Scheme side only work. Here's how one can add a constant
+is a Scheme-side-only work. Here's how one can add a constant
 property:
+
 #+begin_src scheme
   ;; Implying the tabs API is defined
   (define-api "tabs" "Tabs"
@@ -82,6 +82,7 @@ property:
 
 Modifiable properties with setters are possible too, although rarely
 needed:
+
 #+begin_src scheme
   ;; Closure as the simplest way to retain state, for example.
   (let ((value 8))
@@ -94,11 +95,11 @@ needed:
 #+end_src
 
 ** Easy: Promise-based methods
-
 Most WebExtensions JS methods return a Promise object waiting until
 the browser responds with a value. Most of the infrastructure is
 already in place, so you only have to add the response handler on the
 Nyxt side. In Scheme, add
+
 #+begin_src scheme
   (define-api "tabs" "Tabs"
     ;; New method sending a message to browser and returning a Promise.
@@ -129,7 +130,6 @@ It's possible to return less or more—JavaScript is flexible enough for
 that. But that's always a risk, so don't test the limits of WebKit 😉
 
 ** Medium: non-Promise methods
-
 There are methods that return values immediately or that go beyond the
 regular Promise pattern. For these, you'd have to provide a custom
 callback:
@@ -150,12 +150,15 @@ callback:
 ** Medium: Adding new APIs
 
 In the simplest case, adding a new API is just:
+
 #+begin_src scheme
   (define-api "alerts" "Alerts"
     ;; Fill in the methods and properties.
     )
 #+end_src
+
 and
+
 #+begin_src scheme
   ((hash-ref *apis* "alerts") context)
 #+end_src
