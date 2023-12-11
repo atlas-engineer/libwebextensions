@@ -96,11 +96,9 @@ arglist."
    ((pointer? procedure)
     procedure)))
 
-;; FIXME: Some of the `foreign-fn' -> `foreign-library-function' ->
-;; `pointer->procedure' fails with wrong ARGS value. Check all the
-;; `foreign-fn' call sites and ensure proper arglist.
 (define (foreign-fn name args return-type)
-  "Wrapper around `foreign-library-function' for ease of throwaway C calls."
+  "Wrapper around `foreign-library-function' for ease of throwaway C calls.
+Make sure to provide proper arglist: it segfaults otherwise."
   (foreign-library-function
    lib name
    #:return-type return-type
@@ -157,6 +155,12 @@ G-VARIANT is implied to be a maybe/string GVariant."
    (string->pointer* signal)
    handler (or data %null-pointer) %null-pointer 0))
 
+(define (procedure-maximum-arity procedure)
+  "Get the maximum possible number of _positional_ arguments for PROCEDURE.
+Counts required and optional arguments, in other words."
+  (let ((arity (procedure-minimum-arity procedure)))
+    (+ (car arity) (cadr arity))))
+
 (define (procedure-of-arity? arity)
   (lambda (p)
     (and (procedure? p)
@@ -170,7 +174,7 @@ CALLBACK is called with:
 - and the GAsyncResult already processed.
 
 CALLBACK doesn't have to be a procedure. If it's NULL or #f, the async
-callback does nothing (and is NULL).
+callback does nothing (and is NULL on the C side).
 
 FINISH-FN should be one of:
 - String (name of the _finish foreign function).
@@ -197,12 +201,6 @@ FINISH-FN should be one of:
                              (g-log "GAsyncCallback terminated"))
                            '(* *) void)
       %null-pointer))
-
-(define (procedure-maximum-arity procedure)
-  "Get the maximum possible number of _positional_ arguments for PROCEDURE.
-Counts required and optional arguments, in other words."
-  (let ((arity (procedure-minimum-arity procedure)))
-    (+ (car arity) (cadr arity))))
 
 ;;; JSCore bindings
 
@@ -444,7 +442,8 @@ context it belongs to."
   (positive? ((foreign-fn "jsc_value_is_string" '(*) unsigned-int) jsc)))
 (define (jsc->string jsc)
   "Return a string representation for JSC.
-Should mainly be used on string JSCValues, but works on any of them."
+Should mainly be used on string JSCValues, but works on any of them.
+For non-string values, you're better off with `jsc->json'."
   (pointer->string*
    ((foreign-fn "jsc_value_to_string" (list '*) '*) jsc)))
 
@@ -698,10 +697,7 @@ already and is returned."
    ;; If it's not a pointer, then it's a Scheme value already. Return
    ;; it as is.
    ((not (pointer? object)) #:unknown)
-   ((zero? ((foreign-fn "g_type_check_instance_is_a"
-                        `(* ,unsigned-int) unsigned-int)
-            object ((foreign-fn "jsc_value_get_type" '() unsigned-int))))
-    #:unknown)
+   ((not (jsc? object)) #:unknown)
    ((jsc-null? object) #:null)
    ((jsc-undefined? object) #:undefined)
    ((jsc-boolean? object) #:boolean)
@@ -1063,37 +1059,6 @@ return a JSCValue!"
     (jsc-context-value-set! "browser" object context)
     (jsc-context-value-set! "chrome" object context)
     (g-log "Browser injected into ~s" context)))
-
-;; ;; Pointer constructor test code. Leave until ExtEvents are fully
-;; ;; tested.
-;; (let* ((context (make-jsc-context))
-;;        (class (jsc-class-register! "Aaa" context))
-;;        (jsc-type ((foreign-fn "jsc_value_get_type" '() unsigned-int)))
-;;        (g-type-pointer 68)
-;;        (constructor
-;;         ((foreign-fn "jsc_class_add_constructor"
-;;                      (append `(* * * * * ,unsigned-int ,unsigned-int ,unsigned-int))
-;;                      '*)
-;;          ;; Class and (automatic) class name.
-;;          class %null-pointer
-;;          ;; Constructor callback
-;;          (procedure->pointer*
-;;           (lambda (arg)
-;;             (let ((hash (make-hash-table)))
-;;               (hash-set! hash "arg" (jsc->scm arg))
-;;               (scm->pointer hash))))
-;;          ;; User data and GNotifyDestroy
-;;          %null-pointer %null-pointer
-;;          ;; Return type and arg types.
-;;          g-type-pointer 1 jsc-type)))
-;;   (jsc-class-add-method!
-;;    class "aaaArg"
-;;    (lambda* (hash)
-;;      (let ((hash (pointer->scm hash)))
-;;        (scm->jsc (hash-ref hash "arg")))))
-;;   (jsc->scm (jsc-object-call-method
-;;              (jsc-constructor-call constructor (scm->jsc 4 context))
-;;              "aaaArg")))
 
 (define (inject-events context)
   (g-log "Injecting event class into ~s" context)
@@ -1525,6 +1490,7 @@ Alist tails are lists of string for values of headers."
             (hash-map->list (lambda (key value) (cons key value)) params))
           (get "g_uri_get_fragment"))))
 
+;; FIXME: Make it complete.
 (define (match-pattern pattern)
   "Return a procedure matching a string URL against PATTERN."
   (cond
@@ -1657,6 +1623,8 @@ NOTE: the set of allowed characters in NAME is uncertain."
                (jsc-context-value-set! "EXTENSION" name context)
                (inject-browser context)
                (inject-events context)
+               ;; Should be safe to walk `*apis*' with
+               ;; `hash-map->list' when they are stable enough.
                ((hash-ref *apis* "tabs") context)
                ((hash-ref *apis* "runtime") context)
                ((hash-ref *apis* "management") context)))))
@@ -1717,6 +1685,8 @@ NOTE: the set of allowed characters in NAME is uncertain."
            (event-run scm (jsc->list% (jsc-property% param-jsc "args")))))
        *events*)))))
 
+;; FIXME: Fails on some requests. Maybe because some of them send
+;; binary data?
 (define (send-request-callback page request redirected-response)
   ;; (g-log "Sending a request to '~s'" (request-uri request))
   ;; (g-log "Headers are: ~s"

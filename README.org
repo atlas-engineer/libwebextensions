@@ -1,7 +1,7 @@
 #+TITLE:WebExtensions API support library
 
 Note December 2023: The library is abandoned due to Nyxt team changing priorities. It's incomplete. But should be possible to make it work, given enough work. In particular:
-- Fix/add events support. Right now it's a stub that's implemented with terrible hacks in JavaScript. And it doesn't even work.
+- Fix/add events support. Right now it's a stub that's implemented with terrible hacks in JavaScript. And it doesn't even work. See the ~event-prototype~ branch.
 - Support messages.
 - And fill all the APIs in.
   - Mostly adding =define-api=-s everywhere.
